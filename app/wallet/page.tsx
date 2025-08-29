@@ -43,10 +43,18 @@ export default function WalletPage() {
       <DashboardLayout>
         <div className="text-center py-8">
           <p className="text-muted-foreground mb-4">Failed to load wallet data</p>
-          <Button onClick={handleRefresh} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Try Again
-          </Button>
+          <Tabs defaultValue="retry" className="inline-flex">
+            <TabsList className="bg-transparent p-0 h-auto">
+              <TabsTrigger 
+                value="retry" 
+                onClick={handleRefresh} 
+                className="gap-2 px-1 py-1.5 text-sm font-medium text-muted-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Try Again</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </DashboardLayout>
     )
@@ -60,16 +68,34 @@ export default function WalletPage() {
             <h1 className="text-3xl font-bold tracking-tight">Wallet</h1>
             <p className="text-muted-foreground">Manage your USD wallet and transaction history</p>
           </div>
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <Tabs defaultValue="refresh" className="inline-flex">
+            <TabsList className="bg-transparent p-0 h-auto">
+              <TabsTrigger 
+                value="refresh" 
+                onClick={handleRefresh} 
+                className="gap-2 px-1 py-1.5 text-sm font-medium text-muted-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Refresh</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsList className="border-b border-gray-200 dark:border-gray-800 bg-transparent p-0">
+            <TabsTrigger 
+              value="overview" 
+              className="px-4 py-2 text-sm font-medium text-muted-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger 
+              value="transactions" 
+              className="px-4 py-2 text-sm font-medium text-muted-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              Transactions
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">

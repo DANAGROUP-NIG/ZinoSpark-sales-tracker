@@ -183,7 +183,9 @@ export function PaymentsTable() {
                   <TableCell className="font-medium">{formatCurrency(payment.amountUSD)}</TableCell>
                   <TableCell>{formatDate(payment.createdAt)}</TableCell>
                   <TableCell>
-                    <Badge>Completed</Badge>
+                    <Badge className="bg-green-100 hover:bg-green-200 text-green-600">
+                      Completed
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))
@@ -232,7 +234,7 @@ export function PaymentsTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">USD:</span>
-                    <span className="font-bold text-primary">{formatCurrency(payment.amountUSD)}</span>
+                    <span className="font-bold text-purple-600">{formatCurrency(payment.amountUSD)}</span>
                   </div>
                 </div>
               </CardContent>

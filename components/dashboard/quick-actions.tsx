@@ -48,13 +48,20 @@ export function QuickActions() {
           {filteredActions.map((action) => {
             const Icon = action.icon
             return (
-              <Button key={action.title} variant="outline" className="h-auto p-4 justify-start bg-transparent" asChild>
+              <Button 
+                key={action.title} 
+                variant="outline" 
+                className="h-auto p-4 justify-start bg-white hover:bg-blue-50 border-2 border-gray-200 hover:border-blue-800 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105 cursor-pointer" 
+                asChild
+              >
                 <Link href={action.href}>
                   <div className="flex items-start gap-3">
-                    <Icon className="h-5 w-5 mt-0.5 text-primary" />
+                    <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+                      <Icon className="h-5 w-5 text-blue-800" />
+                    </div>
                     <div className="text-left">
-                      <div className="font-medium">{action.title}</div>
-                      <div className="text-sm text-muted-foreground">{action.description}</div>
+                      <div className="font-semibold text-gray-900">{action.title}</div>
+                      <div className="text-sm text-gray-600">{action.description}</div>
                     </div>
                   </div>
                 </Link>

@@ -64,13 +64,19 @@ function getActivityIcon(type: string) {
 
 function getStatusBadge(status: string) {
   const variants = {
-    completed: "default",
-    pending: "secondary",
-    received: "default",
-    cancelled: "destructive",
-  } as const
+    completed: { variant: "default" as const, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
+    pending: { variant: "default" as const, color: "text-amber-700", bg: "bg-amber-100 hover:bg-amber-200" },
+    received: { variant: "default" as const, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
+    cancelled: { variant: "destructive" as const, color: "text-red-600", bg: "" },
+  }
 
-  return <Badge variant={variants[status as keyof typeof variants] || "secondary"}>{status}</Badge>
+  const config = variants[status as keyof typeof variants] || { variant: "secondary" as const, color: "", bg: "" }
+  
+  return (
+    <Badge variant={config.variant} className={config.bg}>
+      {status}
+    </Badge>
+  )
 }
 
 export function RecentActivity() {

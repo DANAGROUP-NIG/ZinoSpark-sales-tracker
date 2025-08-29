@@ -196,7 +196,9 @@ export function VendorPaymentsTable() {
                   </TableCell>
                   <TableCell>{formatDate(payment.createdAt)}</TableCell>
                   <TableCell>
-                    <Badge>Completed</Badge>
+                    <Badge className="bg-green-100 hover:bg-green-200 text-green-600">
+                      Completed
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))
@@ -234,7 +236,7 @@ export function VendorPaymentsTable() {
                     <p className="text-xs text-muted-foreground mt-1">{formatDate(payment.createdAt)}</p>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-primary text-lg">{formatCurrency(payment.amountUSD)}</div>
+                    <div className="font-bold text-purple-600 text-lg">{formatCurrency(payment.amountUSD)}</div>
                     <Badge className="mt-1">Completed</Badge>
                   </div>
                 </div>

@@ -137,16 +137,16 @@ export function ExchangesTable() {
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      PENDING: { variant: "secondary" as const, icon: Clock, color: "text-yellow-600" },
-      RECEIVED: { variant: "default" as const, icon: CheckCircle, color: "text-green-600" },
-      CANCELLED: { variant: "destructive" as const, icon: XCircle, color: "text-red-600" },
+      PENDING: { variant: "default" as const, icon: Clock, color: "text-amber-700", bg: "bg-amber-100 hover:bg-amber-200" },
+      RECEIVED: { variant: "default" as const, icon: CheckCircle, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
+      CANCELLED: { variant: "destructive" as const, icon: XCircle, color: "text-red-600", bg: "" },
     }
 
     const config = variants[status as keyof typeof variants] || variants.PENDING
     const Icon = config.icon
 
     return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
+      <Badge variant={config.variant} className={`flex items-center gap-1 ${config.bg || ''}`}>
         <Icon className={`h-3 w-3 ${config.color}`} />
         {status}
       </Badge>
@@ -341,7 +341,7 @@ export function ExchangesTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">USD:</span>
-                    <span className="font-bold text-primary">{formatCurrency(exchange.amountUSD)}</span>
+                    <span className="font-bold text-purple-600">{formatCurrency(exchange.amountUSD)}</span>
                   </div>
                 </div>
               </CardContent>
