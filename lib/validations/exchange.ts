@@ -1,0 +1,17 @@
+import { z } from "zod"
+
+export const exchangeSchema = z.object({
+  vendorId: z.string().min(1, "Please select a vendor"),
+  amountNaira: z.number().min(0.01, "Amount must be greater than 0"),
+  exchangeRate: z.number().min(0.01, "Exchange rate must be greater than 0"),
+})
+
+export type ExchangeFormData = z.infer<typeof exchangeSchema>
+
+export const updateExchangeStatusSchema = z.object({
+  status: z.enum(["PENDING", "RECEIVED", "CANCELLED"], {
+    required_error: "Please select a status",
+  }),
+})
+
+export type UpdateExchangeStatusData = z.infer<typeof updateExchangeStatusSchema>
