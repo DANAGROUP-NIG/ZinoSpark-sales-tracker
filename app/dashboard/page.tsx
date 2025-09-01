@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { MetricsCard } from "@/components/dashboard/metrics-card"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
+import { PWAStatus } from "@/components/pwa/pwa-status"
 import { dashboardApi } from "@/lib/api"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { Wallet, Users, Clock, TrendingUp } from "lucide-react"
@@ -70,6 +71,11 @@ export default function DashboardPage() {
 
         {/* Recent Activity */}
         <RecentActivity />
+
+        {/* PWA Status - Only show on mobile or when not installed */}
+        <div className="block md:hidden">
+          <PWAStatus />
+        </div>
       </div>
     </DashboardLayout>
   )
