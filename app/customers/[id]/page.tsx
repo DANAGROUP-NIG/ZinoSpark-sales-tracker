@@ -7,56 +7,33 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { customersApi } from "@/lib/api"
+import { customersApi, paymentsApi, vendorPaymentsApi } from "@/lib/api"
 import { ArrowLeft, Mail, Phone, Wallet, Calendar } from "lucide-react"
 import Link from "next/link"
-
-// Mock customer detail data
-const mockCustomerDetail = {
-  id: "1",
-  name: "John Doe",
-  email: "john@example.com",
-  phone: "+1234567890",
-  balanceUSD: 1250.5,
-  createdAt: "2024-01-15T10:30:00Z",
-  updatedAt: "2024-01-20T14:45:00Z",
-}
-
-const mockPayments = [
-  {
-    id: "1",
-    amountNaira: 850000,
-    exchangeRate: 1650,
-    amountUSD: 515.15,
-    createdAt: "2024-01-20T14:45:00Z",
-  },
-  {
-    id: "2",
-    amountNaira: 1200000,
-    exchangeRate: 1630,
-    amountUSD: 735.29,
-    createdAt: "2024-01-18T11:30:00Z",
-  },
-]
-
-const mockVendorPayments = [
-  {
-    id: "1",
-    amountUSD: 500.0,
-    description: "International transfer",
-    vendor: { name: "Vendor A" },
-    createdAt: "2024-01-19T16:20:00Z",
-  },
-]
 
 export default function CustomerDetailPage() {
   const params = useParams()
   const customerId = params.id as string
 
-  const { data: customer, isLoading } = useQuery({
+  const { data: customer, isLoading: customerLoading } = useQuery({
     queryKey: ["customer", customerId],
-    // Use mock data for development
-    queryFn: () => Promise.resolve(mockCustomerDetail),
+    queryFn: () => customersApi.getById(customerId),
+  })
+
+  // Use embedded payments/vendorPayments from customer detail if present; otherwise fallback to list APIs
+  const embeddedPayments = customer?.payments || []
+  const embeddedVendorPayments = customer?.vendorPayments || []
+  const hasEmbedded = embeddedPayments.length > 0 || embeddedVendorPayments.length > 0
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+    queryKey: ["customer-payments", customerId],
+    queryFn: () => paymentsApi.getAll({ customerId, limit: 50 }),
+    enabled: !!customerId && !hasEmbedded,
+  })
+
+  const { data: vendorPaymentsData, isLoading: vendorPaymentsLoading } = useQuery({
+    queryKey: ["customer-vendor-payments", customerId],
+    queryFn: () => vendorPaymentsApi.getAll({ customerId, limit: 50 }),
+    enabled: !!customerId && !hasEmbedded,
   })
 
   const formatDate = (dateString: string) => {
@@ -69,14 +46,15 @@ export default function CustomerDetailPage() {
     })
   }
 
-  const formatCurrency = (amount: number, currency = "USD") => {
+  const formatCurrency = (amount?: number, currency = "USD") => {
+    const safe = typeof amount === 'number' && isFinite(amount) ? amount : 0
     if (currency === "USD") {
-      return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+      return `$${safe.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
     }
-    return `₦${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+    return `₦${safe.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
   }
 
-  if (isLoading) {
+  if (customerLoading) {
     return (
       <DashboardLayout allowedRoles={["CLIENT"]}>
         <div className="space-y-6">
@@ -179,18 +157,30 @@ export default function CustomerDetailPage() {
             <CardTitle>Payment History</CardTitle>
           </CardHeader>
           <CardContent>
-            {mockPayments.length === 0 ? (
+            {paymentsLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted rounded animate-pulse w-32" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-48" />
+                    </div>
+                    <div className="h-6 bg-muted rounded animate-pulse w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : (hasEmbedded ? embeddedPayments.length === 0 : (paymentsData?.payments.length === 0)) ? (
               <p className="text-center text-muted-foreground py-8">No payments found</p>
             ) : (
               <div className="space-y-4">
-                {mockPayments.map((payment) => (
+                {(hasEmbedded ? embeddedPayments : paymentsData?.payments || []).map((payment: any) => (
                   <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <p className="font-medium">
                         {formatCurrency(payment.amountNaira, "NGN")} → {formatCurrency(payment.amountUSD)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Rate: ₦{payment.exchangeRate}/USD • {formatDate(payment.createdAt)}
+                        Rate: ₦{payment.exchangeRate}/USD • {formatDate(payment.transactionDate || payment.createdAt)}
                       </p>
                     </div>
                     <Badge>Completed</Badge>
@@ -207,16 +197,28 @@ export default function CustomerDetailPage() {
             <CardTitle>Vendor Payments</CardTitle>
           </CardHeader>
           <CardContent>
-            {mockVendorPayments.length === 0 ? (
+            {vendorPaymentsLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted rounded animate-pulse w-24" />
+                      <div className="h-3 bg-muted rounded animate-pulse w-48" />
+                    </div>
+                    <div className="h-6 bg-muted rounded animate-pulse w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : (hasEmbedded ? embeddedVendorPayments.length === 0 : (vendorPaymentsData?.vendorPayments.length === 0)) ? (
               <p className="text-center text-muted-foreground py-8">No vendor payments found</p>
             ) : (
               <div className="space-y-4">
-                {mockVendorPayments.map((payment) => (
+                {(hasEmbedded ? embeddedVendorPayments : vendorPaymentsData?.vendorPayments || []).map((payment: any) => (
                   <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <p className="font-medium">{formatCurrency(payment.amountUSD)}</p>
                       <p className="text-sm text-muted-foreground">
-                        To {payment.vendor.name} • {payment.description} • {formatDate(payment.createdAt)}
+                        {payment.description || "No description"} • {formatDate(payment.transactionDate || payment.createdAt)}
                       </p>
                     </div>
                     <Badge>Completed</Badge>

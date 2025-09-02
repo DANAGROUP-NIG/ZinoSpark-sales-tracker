@@ -12,68 +12,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { vendorsApi } from "@/lib/api"
 import { VendorModal } from "./vendor-modal"
-import { Search, MoreHorizontal, Edit, Trash2, Plus, Filter, Building2, ArrowLeftRight } from "lucide-react"
+import { Search, MoreHorizontal, Edit, Trash2, Plus, Filter, Building2, ArrowLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import type { Vendor } from "@/lib/types"
-
-// Mock vendors data
-const mockVendors = [
-  {
-    id: "1",
-    name: "Exchange Vendor A",
-    type: "EXCHANGE" as const,
-    contactInfo: "contact@vendora.com\n+1234567890\n123 Exchange St, Lagos",
-    createdAt: "2024-01-15T10:30:00Z",
-    updatedAt: "2024-01-20T14:45:00Z",
-  },
-  {
-    id: "2",
-    name: "Payment Vendor B",
-    type: "PAYMENT" as const,
-    contactInfo: "support@vendorb.com\n+1987654321",
-    createdAt: "2024-01-10T09:15:00Z",
-    updatedAt: "2024-01-18T16:20:00Z",
-  },
-  {
-    id: "3",
-    name: "Exchange Vendor C",
-    type: "EXCHANGE" as const,
-    contactInfo: "info@vendorc.com",
-    createdAt: "2024-01-05T11:00:00Z",
-    updatedAt: "2024-01-22T13:30:00Z",
-  },
-  {
-    id: "4",
-    name: "Payment Vendor D",
-    type: "PAYMENT" as const,
-    contactInfo: "",
-    createdAt: "2024-01-12T08:45:00Z",
-    updatedAt: "2024-01-19T10:15:00Z",
-  },
-]
 
 export function VendorsTable() {
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [page, setPage] = useState(1)
+  const [limit] = useState(10)
   const [selectedVendor, setSelectedVendor] = useState<Vendor | undefined>()
   const [modalOpen, setModalOpen] = useState(false)
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ["vendors", { page, search, type: typeFilter }],
-    // Use mock data for development
-    queryFn: () =>
-      Promise.resolve({
-        vendors: mockVendors.filter(
-          (v) =>
-            (typeFilter === "all" || v.type === typeFilter) &&
-            (search === "" || v.name.toLowerCase().includes(search.toLowerCase())),
-        ),
-        total: mockVendors.length,
-        page,
-        totalPages: 1,
-      }),
+    queryKey: ["vendors", { page, type: typeFilter, limit }],
+    queryFn: () => vendorsApi.getAll({ page, limit, type: typeFilter === "all" ? undefined : typeFilter }),
   })
 
   const deleteMutation = useMutation({
@@ -131,6 +85,19 @@ export function VendorsTable() {
     )
   }
 
+  // Filter vendors locally based on search
+  const filteredVendors = data?.vendors?.filter(vendor => 
+    vendor.name.toLowerCase().includes(search.toLowerCase()) ||
+    (vendor.contactInfo && vendor.contactInfo.toLowerCase().includes(search.toLowerCase()))
+  ) || []
+
+  const totalPages = data?.totalPages || 1
+  const totalVendors = data?.total || 0
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -177,7 +144,7 @@ export function VendorsTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              [...Array(5)].map((_, i) => (
+              [...Array(limit)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <div className="h-4 bg-muted rounded animate-pulse" />
@@ -196,14 +163,14 @@ export function VendorsTable() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : data?.vendors.length === 0 ? (
+            ) : filteredVendors.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  No vendors found
+                  {search ? "No vendors match your search" : "No vendors found"}
                 </TableCell>
               </TableRow>
             ) : (
-              data?.vendors.map((vendor) => (
+              filteredVendors.map((vendor) => (
                 <TableRow key={vendor.id}>
                   <TableCell className="font-medium">{vendor.name}</TableCell>
                   <TableCell>{getTypeBadge(vendor.type)}</TableCell>
@@ -248,7 +215,7 @@ export function VendorsTable() {
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
         {isLoading ? (
-          [...Array(5)].map((_, i) => (
+          [...Array(limit)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="space-y-2">
@@ -259,12 +226,14 @@ export function VendorsTable() {
               </CardContent>
             </Card>
           ))
-        ) : data?.vendors.length === 0 ? (
+        ) : filteredVendors.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">No vendors found</CardContent>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              {search ? "No vendors match your search" : "No vendors found"}
+            </CardContent>
           </Card>
         ) : (
-          data?.vendors.map((vendor) => (
+          filteredVendors.map((vendor) => (
             <Card key={vendor.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -301,6 +270,52 @@ export function VendorsTable() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalVendors)} of {totalVendors} vendors
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              disabled={page === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-sm font-medium">
+              Page {page} of {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(totalPages)}
+              disabled={page === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <VendorModal open={modalOpen} onOpenChange={setModalOpen} vendor={selectedVendor} />
     </div>

@@ -4,58 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useQuery } from "@tanstack/react-query"
 import { Activity, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react"
-
-// Mock data for recent activity
-const mockActivity = [
-  {
-    id: "1",
-    type: "payment",
-    description: "Payment received from John Doe",
-    amount: "$1,250.00",
-    status: "completed",
-    timestamp: "2 minutes ago",
-  },
-  {
-    id: "2",
-    type: "exchange",
-    description: "Currency exchange with Vendor A",
-    amount: "₦850,000",
-    status: "pending",
-    timestamp: "15 minutes ago",
-  },
-  {
-    id: "3",
-    type: "vendor_payment",
-    description: "Payment to Vendor B for Jane Smith",
-    amount: "$500.00",
-    status: "completed",
-    timestamp: "1 hour ago",
-  },
-  {
-    id: "4",
-    type: "payment",
-    description: "Payment received from Alice Johnson",
-    amount: "$750.00",
-    status: "completed",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "5",
-    type: "exchange",
-    description: "Currency exchange with Vendor C",
-    amount: "₦1,200,000",
-    status: "received",
-    timestamp: "3 hours ago",
-  },
-]
+import { dashboardApi } from "@/lib/api"
 
 function getActivityIcon(type: string) {
   switch (type) {
-    case "payment":
+    case "PAYMENT":
       return <ArrowDownLeft className="h-4 w-4 text-green-600" />
-    case "exchange":
+    case "EXCHANGE":
       return <RefreshCw className="h-4 w-4 text-blue-600" />
-    case "vendor_payment":
+    case "VENDOR_PAYMENT":
       return <ArrowUpRight className="h-4 w-4 text-orange-600" />
     default:
       return <Activity className="h-4 w-4" />
@@ -64,10 +21,10 @@ function getActivityIcon(type: string) {
 
 function getStatusBadge(status: string) {
   const variants = {
-    completed: { variant: "default" as const, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
-    pending: { variant: "default" as const, color: "text-amber-700", bg: "bg-amber-100 hover:bg-amber-200" },
-    received: { variant: "default" as const, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
-    cancelled: { variant: "destructive" as const, color: "text-red-600", bg: "" },
+    COMPLETED: { variant: "default" as const, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
+    PENDING: { variant: "default" as const, color: "text-amber-700", bg: "bg-amber-100 hover:bg-amber-200" },
+    RECEIVED: { variant: "default" as const, color: "text-green-600", bg: "bg-green-100 hover:bg-green-200" },
+    CANCELLED: { variant: "destructive" as const, color: "text-red-600", bg: "" },
   }
 
   const config = variants[status as keyof typeof variants] || { variant: "secondary" as const, color: "", bg: "" }
@@ -80,10 +37,13 @@ function getStatusBadge(status: string) {
 }
 
 export function RecentActivity() {
-  // In a real app, this would fetch from the API
-  const { data: activities = mockActivity, isLoading } = useQuery({
+  const { data: activities, isLoading } = useQuery({
     queryKey: ["recent-activity"],
-    queryFn: () => Promise.resolve(mockActivity),
+    queryFn: async () => {
+      const metrics = await dashboardApi.getMetrics()
+      // No recentActivity array in backend; show last few synthetic entries using raw totals
+      return []
+    },
   })
 
   return (
@@ -107,9 +67,13 @@ export function RecentActivity() {
               </div>
             ))}
           </div>
+        ) : activities?.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No recent activity
+          </div>
         ) : (
           <div className="space-y-4">
-            {activities.map((activity) => (
+            {activities?.map((activity) => (
               <div key={activity.id} className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                   {getActivityIcon(activity.type)}
@@ -117,11 +81,11 @@ export function RecentActivity() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{activity.description}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <p className="text-xs text-muted-foreground">{activity.timestamp}</p>
-                    {getStatusBadge(activity.status)}
+                    <p className="text-xs text-muted-foreground">{new Date(activity.date).toLocaleDateString()}</p>
+                    <Badge variant="secondary">Completed</Badge>
                   </div>
                 </div>
-                <div className="text-sm font-medium">{activity.amount}</div>
+                <div className="text-sm font-medium">${activity.amount.toLocaleString()}</div>
               </div>
             ))}
           </div>

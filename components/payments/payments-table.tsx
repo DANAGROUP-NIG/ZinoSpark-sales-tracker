@@ -8,73 +8,24 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Filter } from "lucide-react"
+import { Search, Plus, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
-
-// Mock payments data
-const mockPayments = [
-  {
-    id: "1",
-    customerId: "1",
-    customer: { name: "John Doe" },
-    amountNaira: 850000,
-    exchangeRate: 1650,
-    amountUSD: 515.15,
-    createdAt: "2024-01-20T14:45:00Z",
-  },
-  {
-    id: "2",
-    customerId: "2",
-    customer: { name: "Jane Smith" },
-    amountNaira: 1200000,
-    exchangeRate: 1630,
-    amountUSD: 735.29,
-    createdAt: "2024-01-18T11:30:00Z",
-  },
-  {
-    id: "3",
-    customerId: "3",
-    customer: { name: "Alice Johnson" },
-    amountNaira: 2000000,
-    exchangeRate: 1680,
-    amountUSD: 1190.48,
-    createdAt: "2024-01-15T09:20:00Z",
-  },
-  {
-    id: "4",
-    customerId: "1",
-    customer: { name: "John Doe" },
-    amountNaira: 500000,
-    exchangeRate: 1640,
-    amountUSD: 304.88,
-    createdAt: "2024-01-12T16:15:00Z",
-  },
-]
-
-const mockCustomers = [
-  { id: "1", name: "John Doe" },
-  { id: "2", name: "Jane Smith" },
-  { id: "3", name: "Alice Johnson" },
-]
+import { paymentsApi, customersApi } from "@/lib/api"
 
 export function PaymentsTable() {
   const [search, setSearch] = useState("")
   const [customerFilter, setCustomerFilter] = useState("all")
   const [page, setPage] = useState(1)
+  const [limit] = useState(10)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["payments", { page, search, customerId: customerFilter }],
-    queryFn: () =>
-      Promise.resolve({
-        payments: mockPayments.filter(
-          (p) =>
-            (customerFilter === "all" || p.customerId === customerFilter) &&
-            (search === "" || p.customer.name.toLowerCase().includes(search.toLowerCase())),
-        ),
-        total: mockPayments.length,
-        page,
-        totalPages: 1,
-      }),
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+    queryKey: ["payments", { page, customerId: customerFilter, limit }],
+    queryFn: () => paymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter }),
+  })
+
+  const { data: customersData } = useQuery({
+    queryKey: ["customers-for-payments"],
+    queryFn: () => customersApi.getAll({ limit: 100 }),
   })
 
   const formatDate = (dateString: string) => {
@@ -92,6 +43,23 @@ export function PaymentsTable() {
       return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
     }
     return `₦${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+  }
+
+  const getCustomerName = (customerId: string) => {
+    const customer = customersData?.customers?.find(c => c.id === customerId)
+    return customer?.name || "Unknown Customer"
+  }
+
+  // Filter payments locally based on search
+  const filteredPayments = paymentsData?.payments?.filter(payment => 
+    getCustomerName(payment.customerId).toLowerCase().includes(search.toLowerCase())
+  ) || []
+
+  const totalPages = paymentsData?.totalPages || 1
+  const totalPayments = paymentsData?.total || 0
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
   }
 
   return (
@@ -115,7 +83,7 @@ export function PaymentsTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All customers</SelectItem>
-              {mockCustomers.map((customer) => (
+              {customersData?.customers?.map((customer) => (
                 <SelectItem key={customer.id} value={customer.id}>
                   {customer.name}
                 </SelectItem>
@@ -145,8 +113,8 @@ export function PaymentsTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              [...Array(5)].map((_, i) => (
+            {paymentsLoading ? (
+              [...Array(limit)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <div className="h-4 bg-muted rounded animate-pulse" />
@@ -168,16 +136,16 @@ export function PaymentsTable() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : data?.payments.length === 0 ? (
+            ) : filteredPayments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No payments found
+                  {search ? "No payments match your search" : "No payments found"}
                 </TableCell>
               </TableRow>
             ) : (
-              data?.payments.map((payment) => (
+              filteredPayments.map((payment) => (
                 <TableRow key={payment.id}>
-                  <TableCell className="font-medium">{payment.customer.name}</TableCell>
+                  <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{formatCurrency(payment.amountNaira, "NGN")}</TableCell>
                   <TableCell>₦{payment.exchangeRate.toLocaleString()}</TableCell>
                   <TableCell className="font-medium">{formatCurrency(payment.amountUSD)}</TableCell>
@@ -196,8 +164,8 @@ export function PaymentsTable() {
 
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
-        {isLoading ? (
-          [...Array(5)].map((_, i) => (
+        {paymentsLoading ? (
+          [...Array(limit)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="space-y-2">
@@ -208,17 +176,19 @@ export function PaymentsTable() {
               </CardContent>
             </Card>
           ))
-        ) : data?.payments.length === 0 ? (
+        ) : filteredPayments.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">No payments found</CardContent>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              {search ? "No payments match your search" : "No payments found"}
+            </CardContent>
           </Card>
         ) : (
-          data?.payments.map((payment) => (
+          filteredPayments.map((payment) => (
             <Card key={payment.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-medium">{payment.customer.name}</h3>
+                    <h3 className="font-medium">{getCustomerName(payment.customerId)}</h3>
                     <p className="text-sm text-muted-foreground">{formatDate(payment.createdAt)}</p>
                   </div>
                   <Badge>Completed</Badge>
@@ -242,6 +212,52 @@ export function PaymentsTable() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!paymentsLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalPayments)} of {totalPayments} payments
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              disabled={page === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-sm font-medium">
+              Page {page} of {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(totalPages)}
+              disabled={page === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

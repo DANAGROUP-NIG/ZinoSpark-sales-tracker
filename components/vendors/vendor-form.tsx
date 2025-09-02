@@ -33,7 +33,7 @@ export function VendorForm({ vendor, onSuccess }: VendorFormProps) {
     resolver: zodResolver(vendorSchema),
     defaultValues: {
       name: vendor?.name || "",
-      type: vendor?.type || undefined,
+      type: vendor?.type ?? "EXCHANGE",
       contactInfo: vendor?.contactInfo || "",
     },
   })

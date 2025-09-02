@@ -120,12 +120,29 @@ export const authApi = {
 
 // Customers API
 export const customersApi = {
-  getAll: (params?: { page?: number; limit?: number; search?: string }) =>
-    fetchApi<{ customers: any[]; total: number; page: number; totalPages: number }>(
-      `/customers?${new URLSearchParams(params as any).toString()}`,
-    ),
+  getAll: (params?: { page?: number; limit?: number; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/customers${qs ? `?${qs}` : ''}`)
+      .then((res) => {
+        const data = res?.data ?? res
+        const pagination = res?.pagination ?? {}
+        return {
+          customers: data ?? [],
+          total: pagination.total ?? res?.total ?? 0,
+          page: pagination.page ?? res?.page ?? params?.page ?? 1,
+          totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
+        }
+      })
+  },
 
-  getById: (id: string) => fetchApi<any>(`/customers/${id}`),
+  getById: async (id: string) => {
+    const res = await fetchApi<any>(`/customers/${id}`)
+    return res?.data ?? res
+  },
 
   create: (data: { name: string; email?: string; phone?: string }) =>
     fetchApi<any>("/customers", {
@@ -144,12 +161,25 @@ export const customersApi = {
 
 // Payments API
 export const paymentsApi = {
-  getAll: (params?: { page?: number; limit?: number; customerId?: string }) =>
-    fetchApi<{ payments: any[]; total: number; page: number; totalPages: number }>(
-      `/payments?${new URLSearchParams(params as any).toString()}`,
-    ),
-
-  create: (data: { customerId: string; amountNaira: number; exchangeRate: number; amountUSD: number }) =>
+  getAll: (params?: { page?: number; limit?: number; customerId?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/payments${qs ? `?${qs}` : ''}`)
+      .then((res) => {
+        const data = res?.data ?? res
+        const pagination = res?.pagination ?? {}
+        return {
+          payments: data ?? [],
+          total: pagination.total ?? res?.total ?? 0,
+          page: pagination.page ?? res?.page ?? params?.page ?? 1,
+          totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
+        }
+      })
+  },
+  create: (data: { customerId: string; amountNaira: number; exchangeRate: number; transactionDate?: string }) =>
     fetchApi<any>("/payments", {
       method: "POST",
       body: JSON.stringify(data),
@@ -158,15 +188,44 @@ export const paymentsApi = {
 
 // Dashboard API
 export const dashboardApi = {
-  getMetrics: () => fetchApi<any>("/dashboard/metrics"),
+  getMetrics: async () => {
+    const res = await fetchApi<any>("/dashboard/metrics")
+    const data = res?.data ?? res
+    // Normalize to UI expectations
+    const totalPaymentsThisMonth = data?.totalPaymentsThisMonth ?? 0
+    const totalExchangesThisMonth = data?.totalExchangesThisMonth ?? 0
+    const totalVendorPaymentsThisMonth = data?.totalVendorPaymentsThisMonth ?? 0
+    return {
+      totalWalletBalance: data?.walletBalance ?? 0,
+      activeCustomersCount: data?.totalCustomers ?? 0,
+      pendingExchangesCount: data?.pendingExchanges ?? 0,
+      recentTransactionsCount: totalPaymentsThisMonth + totalExchangesThisMonth + totalVendorPaymentsThisMonth,
+      // Keep raw as well in case other widgets need them later
+      raw: data,
+    }
+  },
 }
 
 // Vendors API
 export const vendorsApi = {
-  getAll: (params?: { page?: number; limit?: number; type?: string }) =>
-    fetchApi<{ vendors: any[]; total: number; page: number; totalPages: number }>(
-      `/vendors?${new URLSearchParams(params as any).toString()}`,
-    ),
+  getAll: (params?: { page?: number; limit?: number; type?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params?.type) searchParams.append('type', params.type);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/vendors${qs ? `?${qs}` : ''}`)
+      .then((res) => {
+        const data = res?.data ?? res
+        const pagination = res?.pagination ?? {}
+        return {
+          vendors: data ?? [],
+          total: pagination.total ?? res?.total ?? 0,
+          page: pagination.page ?? res?.page ?? params?.page ?? 1,
+          totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
+        }
+      })
+  },
 
   create: (data: { name: string; type: "EXCHANGE" | "PAYMENT"; contactInfo?: string }) =>
     fetchApi<any>("/vendors", {
@@ -185,12 +244,26 @@ export const vendorsApi = {
 
 // Exchanges API
 export const exchangesApi = {
-  getAll: (params?: { page?: number; limit?: number; status?: string }) =>
-    fetchApi<{ exchanges: any[]; total: number; page: number; totalPages: number }>(
-      `/exchanges?${new URLSearchParams(params as any).toString()}`,
-    ),
+  getAll: (params?: { page?: number; limit?: number; status?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params?.status) searchParams.append('status', params.status);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/exchanges${qs ? `?${qs}` : ''}`)
+      .then((res) => {
+        const data = res?.data ?? res
+        const pagination = res?.pagination ?? {}
+        return {
+          exchanges: data ?? [],
+          total: pagination.total ?? res?.total ?? 0,
+          page: pagination.page ?? res?.page ?? params?.page ?? 1,
+          totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
+        }
+      })
+  },
 
-  create: (data: { vendorId: string; amountNaira: number; exchangeRate: number; amountUSD: number }) =>
+  create: (data: { vendorId: string; amountNaira: number; exchangeRate: number; transactionDate?: string }) =>
     fetchApi<any>("/exchanges", {
       method: "POST",
       body: JSON.stringify(data),
@@ -205,12 +278,25 @@ export const exchangesApi = {
 
 // Vendor Payments API
 export const vendorPaymentsApi = {
-  getAll: (params?: { page?: number; limit?: number; customerId?: string }) =>
-    fetchApi<{ vendorPayments: any[]; total: number; page: number; totalPages: number }>(
-      `/vendor-payments?${new URLSearchParams(params as any).toString()}`,
-    ),
-
-  create: (data: { customerId: string; vendorId: string; amountUSD: number; description?: string }) =>
+  getAll: (params?: { page?: number; limit?: number; customerId?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/vendor-payments${qs ? `?${qs}` : ''}`)
+      .then((res) => {
+        const data = res?.data ?? res
+        const pagination = res?.pagination ?? {}
+        return {
+          vendorPayments: data ?? [],
+          total: pagination.total ?? res?.total ?? 0,
+          page: pagination.page ?? res?.page ?? params?.page ?? 1,
+          totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
+        }
+      })
+  },
+  create: (data: { customerId: string; vendorId: string; amountUSD: number; description?: string; transactionDate?: string }) =>
     fetchApi<any>("/vendor-payments", {
       method: "POST",
       body: JSON.stringify(data),
@@ -219,28 +305,38 @@ export const vendorPaymentsApi = {
 
 // Wallet API
 export const walletApi = {
-  getData: () =>
-    fetchApi<{
-      balance: number
-      totalExchanges: number
-      recentActivity: Array<{
-        id: string
-        type: "EXCHANGE" | "PAYMENT"
-        amount: number
-        date: string
-        description: string
-      }>
-      transactions: Array<{
-        id: string
-        type: "EXCHANGE" | "PAYMENT"
-        amount: number
-        date: string
-        description: string
-        vendor?: string
-        customer?: string
-        status: "COMPLETED" | "PENDING"
-      }>
-    }>("/wallet"),
+  getData: async () => {
+    const res = await fetchApi<any>("/wallet")
+    const data = res?.data ?? res
+    return {
+      balance: data?.totalUSD ?? 0,
+      customerBalanceUSD: data?.totalCustomerBalanceUSD ?? 0,
+      updatedAt: data?.updatedAt,
+    }
+  },
+  getHistory: async (params?: { page?: number; limit?: number }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString())
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    const qs = searchParams.toString()
+    const res = await fetchApi<any>(`/wallet/history${qs ? `?${qs}` : ''}`)
+    const list = res?.data ?? []
+    const pagination = res?.pagination ?? {}
+    const transactions = list.map((item: any) => ({
+      id: item.id,
+      type: item.type, // CREDIT | DEBIT
+      amount: item.amount,
+      date: item.createdAt,
+      description: item.description,
+      status: 'COMPLETED' as const,
+    }))
+    return {
+      transactions,
+      total: pagination.total ?? 0,
+      page: pagination.page ?? 1,
+      totalPages: pagination.totalPages ?? 1,
+    }
+  },
 }
 
 // Convenience function for wallet data
@@ -280,4 +376,5 @@ export const api = {
 
   // Wallet
   getWalletData: walletApi.getData,
+  getWalletHistory: walletApi.getHistory,
 }

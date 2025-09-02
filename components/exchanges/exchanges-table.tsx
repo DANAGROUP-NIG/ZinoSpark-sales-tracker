@@ -12,87 +12,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { exchangesApi } from "@/lib/api"
-import { Search, Plus, Filter, MoreHorizontal, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Search, Plus, Filter, MoreHorizontal, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import type { CurrencyExchange } from "@/lib/types"
-
-// Mock exchanges data
-const mockExchanges = [
-  {
-    id: "1",
-    vendorId: "1",
-    vendor: { 
-      id: "1", 
-      name: "Exchange Vendor A", 
-      type: "EXCHANGE" as const,
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z"
-    },
-    amountNaira: 1650000,
-    exchangeRate: 1650,
-    amountUSD: 1000.0,
-    status: "PENDING" as const,
-    createdAt: "2024-01-20T14:45:00Z",
-    updatedAt: "2024-01-20T14:45:00Z",
-  },
-  {
-    id: "2",
-    vendorId: "3",
-    vendor: { 
-      id: "3", 
-      name: "Exchange Vendor C", 
-      type: "EXCHANGE" as const,
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z"
-    },
-    amountNaira: 2000000,
-    exchangeRate: 1680,
-    amountUSD: 1190.48,
-    status: "RECEIVED" as const,
-    createdAt: "2024-01-18T11:30:00Z",
-    updatedAt: "2024-01-19T09:15:00Z",
-  },
-  {
-    id: "3",
-    vendorId: "1",
-    vendor: { 
-      id: "1", 
-      name: "Exchange Vendor A", 
-      type: "EXCHANGE" as const,
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z"
-    },
-    amountNaira: 500000,
-    exchangeRate: 1640,
-    amountUSD: 304.88,
-    status: "CANCELLED" as const,
-    createdAt: "2024-01-15T09:20:00Z",
-    updatedAt: "2024-01-16T10:30:00Z",
-  },
-]
 
 export function ExchangesTable() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [page, setPage] = useState(1)
+  const [limit] = useState(10)
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
 
   const { data, isLoading } = useQuery({
-    queryKey: ["exchanges", { page, search, status: statusFilter }],
-    // Use mock data for development
-    queryFn: () =>
-      Promise.resolve({
-        exchanges: mockExchanges.filter(
-          (e) =>
-            (statusFilter === "all" || e.status === statusFilter) &&
-            (search === "" || e.vendor.name.toLowerCase().includes(search.toLowerCase())),
-        ),
-        total: mockExchanges.length,
-        page,
-        totalPages: 1,
-      }),
+    queryKey: ["exchanges", { page, status: statusFilter, limit }],
+    queryFn: () => exchangesApi.getAll({ page, limit, status: statusFilter === "all" ? undefined : statusFilter }),
   })
 
   const updateStatusMutation = useMutation({
@@ -153,7 +88,19 @@ export function ExchangesTable() {
     )
   }
 
-  const canUpdateStatus = user?.role === "PARTNER"
+  const canUpdateStatus = user?.role === "PARTNER" || user?.role === "CLIENT"
+
+  // Filter exchanges locally based on search
+  const filteredExchanges = data?.exchanges?.filter(exchange => 
+    exchange.vendor?.name?.toLowerCase().includes(search.toLowerCase())
+  ) || []
+
+  const totalPages = data?.totalPages || 1
+  const totalExchanges = data?.total || 0
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
 
   return (
     <div className="space-y-4">
@@ -208,7 +155,7 @@ export function ExchangesTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              [...Array(5)].map((_, i) => (
+              [...Array(limit)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <div className="h-4 bg-muted rounded animate-pulse" />
@@ -235,16 +182,16 @@ export function ExchangesTable() {
                   )}
                 </TableRow>
               ))
-            ) : data?.exchanges.length === 0 ? (
+            ) : filteredExchanges.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={canUpdateStatus ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                  No exchanges found
+                  {search ? "No exchanges match your search" : "No exchanges found"}
                 </TableCell>
               </TableRow>
             ) : (
-              data?.exchanges.map((exchange) => (
+              filteredExchanges.map((exchange) => (
                 <TableRow key={exchange.id}>
-                  <TableCell className="font-medium">{exchange.vendor.name}</TableCell>
+                  <TableCell className="font-medium">{exchange.vendor?.name || "Unknown Vendor"}</TableCell>
                   <TableCell>{formatCurrency(exchange.amountNaira, "NGN")}</TableCell>
                   <TableCell>₦{exchange.exchangeRate.toLocaleString()}</TableCell>
                   <TableCell className="font-medium">{formatCurrency(exchange.amountUSD)}</TableCell>
@@ -283,7 +230,7 @@ export function ExchangesTable() {
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
         {isLoading ? (
-          [...Array(5)].map((_, i) => (
+          [...Array(limit)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="space-y-2">
@@ -294,17 +241,19 @@ export function ExchangesTable() {
               </CardContent>
             </Card>
           ))
-        ) : data?.exchanges.length === 0 ? (
+        ) : filteredExchanges.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">No exchanges found</CardContent>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              {search ? "No exchanges match your search" : "No exchanges found"}
+            </CardContent>
           </Card>
         ) : (
-          data?.exchanges.map((exchange) => (
+          filteredExchanges.map((exchange) => (
             <Card key={exchange.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-medium">{exchange.vendor.name}</h3>
+                    <h3 className="font-medium">{exchange.vendor?.name || "Unknown Vendor"}</h3>
                     <p className="text-sm text-muted-foreground">{formatDate(exchange.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -349,6 +298,52 @@ export function ExchangesTable() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalExchanges)} of {totalExchanges} exchanges
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              disabled={page === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-sm font-medium">
+              Page {page} of {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(totalPages)}
+              disabled={page === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

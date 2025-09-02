@@ -59,7 +59,11 @@ function NavigationItems({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname()
   const { user, logout } = useAuthStore()
 
-  const filteredNavigation = navigation.filter((item) => item.roles.includes(user?.role || "CLIENT"))
+  // Give CLIENT full access
+  const filteredNavigation = navigation.filter((item) => {
+    const role = user?.role || "CLIENT"
+    return role === "CLIENT" || item.roles.includes(role)
+  })
 
   return (
     <div className="flex flex-col h-full">

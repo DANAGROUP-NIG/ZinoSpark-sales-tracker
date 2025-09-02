@@ -10,28 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { customersApi, paymentsApi } from "@/lib/api"
 import { paymentSchema, type PaymentFormData } from "@/lib/validations/payment"
 import { Loader2, Calculator, DollarSign } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-
-// Mock payment API
-const paymentsApi = {
-  create: (data: PaymentFormData & { amountUSD: number }) =>
-    Promise.resolve({
-      id: Math.random().toString(),
-      ...data,
-      createdAt: new Date().toISOString(),
-    }),
-}
-
-// Mock customers for dropdown
-const mockCustomers = [
-  { id: "1", name: "John Doe", balanceUSD: 1250.5 },
-  { id: "2", name: "Jane Smith", balanceUSD: 750.25 },
-  { id: "3", name: "Alice Johnson", balanceUSD: 2100.75 },
-  { id: "4", name: "Bob Wilson", balanceUSD: 0 },
-  { id: "5", name: "Carol Brown", balanceUSD: 500.0 },
-]
+import { Calendar } from "@/components/ui/calendar"
 
 export function PaymentForm() {
   const router = useRouter()
@@ -55,6 +38,7 @@ export function PaymentForm() {
       customerId: preselectedCustomerId || "",
       amountNaira: 0,
       exchangeRate: 1650, // Default exchange rate
+      transactionDate: new Date().toISOString().slice(0, 10),
     },
   })
 
@@ -73,18 +57,18 @@ export function PaymentForm() {
   }, [amountNaira, exchangeRate])
 
   // Load customers for dropdown
-  const { data: customers = mockCustomers, isLoading: loadingCustomers } = useQuery({
+  const { data: customersData, isLoading: loadingCustomers } = useQuery({
     queryKey: ["customers-dropdown"],
-    // Use mock data for development
-    queryFn: () => Promise.resolve({ customers: mockCustomers }),
-    select: (data) => data.customers || data,
+    queryFn: () => customersApi.getAll({ limit: 100 }),
   })
 
   const createPaymentMutation = useMutation({
     mutationFn: (data: PaymentFormData) =>
       paymentsApi.create({
-        ...data,
-        amountUSD: calculatedUSD,
+        customerId: data.customerId,
+        amountNaira: data.amountNaira,
+        exchangeRate: data.exchangeRate,
+        transactionDate: data.transactionDate,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] })
@@ -107,10 +91,12 @@ export function PaymentForm() {
   })
 
   const onSubmit = (data: PaymentFormData) => {
-    createPaymentMutation.mutate(data)
+    const isoDate = data.transactionDate ? new Date(data.transactionDate + 'T00:00:00').toISOString() : undefined
+    const { customerId, amountNaira, exchangeRate } = data
+    createPaymentMutation.mutate({ customerId, amountNaira, exchangeRate, transactionDate: isoDate })
   }
 
-  const selectedCustomer = customers.find((c) => c.id === watch("customerId"))
+  const selectedCustomer = customersData?.customers?.find((c) => c.id === watch("customerId"))
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -139,8 +125,12 @@ export function PaymentForm() {
                         <SelectItem value="loading" disabled>
                           Loading customers...
                         </SelectItem>
+                      ) : customersData?.customers?.length === 0 ? (
+                        <SelectItem value="no-customers" disabled>
+                          No customers available
+                        </SelectItem>
                       ) : (
-                        customers.map((customer) => (
+                        customersData?.customers?.map((customer) => (
                           <SelectItem key={customer.id} value={customer.id}>
                             <div className="flex justify-between items-center w-full">
                               <span>{customer.name}</span>
@@ -195,6 +185,25 @@ export function PaymentForm() {
                 />
               </div>
               {errors.exchangeRate && <p className="text-sm text-destructive">{errors.exchangeRate.message}</p>}
+            </div>
+
+            {/* Transaction Date Picker */}
+            <div className="space-y-2">
+              <Label htmlFor="transactionDate">Transaction Date *</Label>
+              <Controller
+                name="transactionDate"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="transactionDate"
+                    type="date"
+                    value={field.value ? field.value.slice(0, 10) : ""}
+                    onChange={e => field.onChange(e.target.value)}
+                    className={errors.transactionDate ? "border-destructive" : ""}
+                  />
+                )}
+              />
+              {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
             </div>
 
             {/* Calculated USD Amount */}

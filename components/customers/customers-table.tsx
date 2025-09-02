@@ -11,62 +11,22 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from "@/hooks/use-toast"
 import { customersApi } from "@/lib/api"
 import { CustomerModal } from "./customer-modal"
-import { Search, MoreHorizontal, Edit, Trash2, Eye, Plus } from "lucide-react"
+import { Search, MoreHorizontal, Edit, Trash2, Eye, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import type { Customer } from "@/lib/types"
-
-// Mock data for development
-const mockCustomers = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john@example.com",
-    phone: "+1234567890",
-    balanceUSD: 1250.5,
-    createdAt: "2024-01-15T10:30:00Z",
-    updatedAt: "2024-01-20T14:45:00Z",
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    email: "jane@example.com",
-    phone: "+1987654321",
-    balanceUSD: 750.25,
-    createdAt: "2024-01-10T09:15:00Z",
-    updatedAt: "2024-01-18T16:20:00Z",
-  },
-  {
-    id: "3",
-    name: "Alice Johnson",
-    email: "",
-    phone: "+1122334455",
-    balanceUSD: 2100.75,
-    createdAt: "2024-01-05T11:00:00Z",
-    updatedAt: "2024-01-22T13:30:00Z",
-  },
-]
 
 export function CustomersTable() {
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const [limit] = useState(10)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | undefined>()
   const [modalOpen, setModalOpen] = useState(false)
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ["customers", { page, search }],
-    // Use mock data for development
-    queryFn: () =>
-      Promise.resolve({
-        customers: mockCustomers.filter(
-          (c) =>
-            c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()),
-        ),
-        total: mockCustomers.length,
-        page,
-        totalPages: 1,
-      }),
+    queryKey: ["customers", { page, limit }],
+    queryFn: () => customersApi.getAll({ page, limit }),
   })
 
   const deleteMutation = useMutation({
@@ -115,6 +75,20 @@ export function CustomersTable() {
     return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
   }
 
+  // Filter customers locally based on search
+  const filteredCustomers = data?.customers?.filter(customer => 
+    customer.name.toLowerCase().includes(search.toLowerCase()) ||
+    (customer.email && customer.email.toLowerCase().includes(search.toLowerCase())) ||
+    (customer.phone && customer.phone.toLowerCase().includes(search.toLowerCase()))
+  ) || []
+
+  const totalPages = data?.totalPages || 1
+  const totalCustomers = data?.total || 0
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -149,7 +123,7 @@ export function CustomersTable() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              [...Array(5)].map((_, i) => (
+              [...Array(limit)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <div className="h-4 bg-muted rounded animate-pulse" />
@@ -171,14 +145,14 @@ export function CustomersTable() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : data?.customers.length === 0 ? (
+            ) : filteredCustomers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No customers found
+                  {search ? "No customers match your search" : "No customers found"}
                 </TableCell>
               </TableRow>
             ) : (
-              data?.customers.map((customer) => (
+              filteredCustomers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell className="font-medium">{customer.name}</TableCell>
                   <TableCell>{customer.email || "-"}</TableCell>
@@ -224,7 +198,7 @@ export function CustomersTable() {
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
         {isLoading ? (
-          [...Array(5)].map((_, i) => (
+          [...Array(limit)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="space-y-2">
@@ -235,12 +209,14 @@ export function CustomersTable() {
               </CardContent>
             </Card>
           ))
-        ) : data?.customers.length === 0 ? (
+        ) : filteredCustomers.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center text-muted-foreground">No customers found</CardContent>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              {search ? "No customers match your search" : "No customers found"}
+            </CardContent>
           </Card>
         ) : (
-          data?.customers.map((customer) => (
+          filteredCustomers.map((customer) => (
             <Card key={customer.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -285,6 +261,52 @@ export function CustomersTable() {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalCustomers)} of {totalCustomers} customers
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              disabled={page === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-sm font-medium">
+              Page {page} of {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(totalPages)}
+              disabled={page === totalPages}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <CustomerModal open={modalOpen} onOpenChange={setModalOpen} customer={selectedCustomer} />
     </div>

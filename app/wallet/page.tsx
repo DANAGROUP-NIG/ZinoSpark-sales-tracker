@@ -101,13 +101,12 @@ export default function WalletPage() {
           <TabsContent value="overview">
             <WalletOverview
               balance={walletData?.balance || 0}
-              totalExchanges={walletData?.totalExchanges || 0}
-              recentActivity={walletData?.recentActivity || []}
+              totalCustomerBalanceUSD={walletData?.customerBalanceUSD || 0}
             />
           </TabsContent>
 
           <TabsContent value="transactions">
-            <WalletTransactions transactions={walletData?.transactions || []} />
+            <WalletTransactions />
           </TabsContent>
         </Tabs>
       </div>

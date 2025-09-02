@@ -10,20 +10,11 @@ import { dashboardApi } from "@/lib/api"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { Wallet, Users, Clock, TrendingUp } from "lucide-react"
 
-// Mock data for development
-const mockMetrics = {
-  totalWalletBalance: 125750.5,
-  activeCustomersCount: 48,
-  pendingExchangesCount: 7,
-  recentTransactionsCount: 23,
-}
-
 export default function DashboardPage() {
   const { user } = useAuthStore()
-  const { data: metrics = mockMetrics, isLoading } = useQuery({
+  const { data: metrics, isLoading } = useQuery({
     queryKey: ["dashboard-metrics"],
-    // Use mock data for now
-    queryFn: () => Promise.resolve(mockMetrics),
+    queryFn: dashboardApi.getMetrics,
   })
 
   return (
@@ -40,7 +31,7 @@ export default function DashboardPage() {
             <MetricsCard
               title="Total Wallet Balance"
               value={
-                isLoading ? "..." : `$${metrics.totalWalletBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                isLoading ? "..." : `$${(metrics?.totalWalletBalance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
               }
               icon={Wallet}
               description="Available USD balance"
@@ -48,19 +39,19 @@ export default function DashboardPage() {
           )}
           <MetricsCard
             title="Active Customers"
-            value={isLoading ? "..." : metrics.activeCustomersCount}
+            value={isLoading ? "..." : (metrics?.activeCustomersCount ?? 0)}
             icon={Users}
             description="Customers with balances"
           />
           <MetricsCard
             title="Pending Exchanges"
-            value={isLoading ? "..." : metrics.pendingExchangesCount}
+            value={isLoading ? "..." : (metrics?.pendingExchangesCount ?? 0)}
             icon={Clock}
             description="Awaiting confirmation"
           />
           <MetricsCard
             title="Recent Transactions"
-            value={isLoading ? "..." : metrics.recentTransactionsCount}
+            value={isLoading ? "..." : (metrics?.recentTransactionsCount ?? 0)}
             icon={TrendingUp}
             description="Last 30 days"
           />

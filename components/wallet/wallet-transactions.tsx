@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { api } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -8,30 +10,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, Filter } from "lucide-react"
 
-interface WalletTransaction {
-  id: string
-  type: "EXCHANGE" | "PAYMENT"
-  amount: number
-  date: string
-  description: string
-  vendor?: string
-  customer?: string
-  status: "COMPLETED" | "PENDING"
-}
-
-interface WalletTransactionsProps {
-  transactions: WalletTransaction[]
-}
-
-export function WalletTransactions({ transactions }: WalletTransactionsProps) {
+export function WalletTransactions() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [page] = useState(1)
+  const [limit] = useState(10)
+
+  const { data } = useQuery({
+    queryKey: ["wallet-history", { page, limit }],
+    queryFn: () => api.getWalletHistory({ page, limit }),
+  })
+
+  const transactions = data?.transactions ?? []
 
   const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch =
-      transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.vendor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.customer?.toLowerCase().includes(searchTerm.toLowerCase())
+      transaction.description.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesType = typeFilter === "all" || transaction.type === typeFilter
     return matchesSearch && matchesType
   })
@@ -57,8 +51,8 @@ export function WalletTransactions({ transactions }: WalletTransactionsProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="EXCHANGE">Exchange</SelectItem>
-              <SelectItem value="PAYMENT">Payment</SelectItem>
+              <SelectItem value="CREDIT">Credit</SelectItem>
+              <SelectItem value="DEBIT">Debit</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -91,9 +85,7 @@ export function WalletTransactions({ transactions }: WalletTransactionsProps) {
                       <Badge variant="secondary">{transaction.type}</Badge>
                     </TableCell>
                     <TableCell>{transaction.description}</TableCell>
-                    <TableCell className="font-medium text-green-600">
-                      +${transaction.amount.toLocaleString()}
-                    </TableCell>
+                    <TableCell className="font-medium text-green-600">${transaction.amount.toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant={transaction.status === "COMPLETED" ? "default" : "secondary"}>
                         {transaction.status}

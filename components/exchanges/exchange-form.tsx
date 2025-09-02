@@ -14,6 +14,7 @@ import { vendorsApi, exchangesApi } from "@/lib/api"
 import { exchangeSchema, type ExchangeFormData } from "@/lib/validations/exchange"
 import { Loader2, Calculator, ArrowLeftRight } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Calendar } from "@/components/ui/calendar"
 
 export function ExchangeForm() {
   const router = useRouter()
@@ -34,6 +35,7 @@ export function ExchangeForm() {
       vendorId: "",
       amountNaira: 0,
       exchangeRate: 1650, // Default exchange rate
+      transactionDate: new Date().toISOString().slice(0, 10),
     },
   })
 
@@ -52,25 +54,18 @@ export function ExchangeForm() {
   }, [amountNaira, exchangeRate])
 
   // Load exchange vendors
-  const { data: vendors = [], isLoading: loadingVendors } = useQuery({
+  const { data: vendorsData, isLoading: loadingVendors } = useQuery({
     queryKey: ["vendors-exchange"],
-    // Use mock data for development
-    queryFn: () =>
-      Promise.resolve({
-        data: [
-          { id: "1", name: "Exchange Vendor A", type: "EXCHANGE" },
-          { id: "2", name: "Exchange Vendor B", type: "EXCHANGE" },
-          { id: "3", name: "Exchange Vendor C", type: "EXCHANGE" },
-        ],
-      }),
-    select: (data) => data.data || [],
+    queryFn: () => vendorsApi.getAll({ type: "EXCHANGE", limit: 100 }),
   })
 
   const createExchangeMutation = useMutation({
     mutationFn: (data: ExchangeFormData) =>
       exchangesApi.create({
-        ...data,
-        amountUSD: calculatedUSD,
+        vendorId: data.vendorId,
+        amountNaira: data.amountNaira,
+        exchangeRate: data.exchangeRate,
+        transactionDate: data.transactionDate,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exchanges"] })
@@ -92,10 +87,12 @@ export function ExchangeForm() {
   })
 
   const onSubmit = (data: ExchangeFormData) => {
-    createExchangeMutation.mutate(data)
+    const isoDate = data.transactionDate ? new Date(data.transactionDate + 'T00:00:00').toISOString() : undefined
+    const { vendorId, amountNaira, exchangeRate } = data
+    createExchangeMutation.mutate({ vendorId, amountNaira, exchangeRate, transactionDate: isoDate })
   }
 
-  const selectedVendor = vendors.find((v) => v.id === watch("vendorId"))
+  const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -122,10 +119,10 @@ export function ExchangeForm() {
                     <SelectContent>
                       {loadingVendors ? (
                         <div className="p-2 text-sm text-muted-foreground">Loading vendors...</div>
-                      ) : vendors.length === 0 ? (
+                      ) : vendorsData?.vendors?.length === 0 ? (
                         <div className="p-2 text-sm text-muted-foreground">No exchange vendors available</div>
                       ) : (
-                        vendors.map((vendor) => (
+                        vendorsData?.vendors?.map((vendor) => (
                           <SelectItem key={vendor.id} value={vendor.id}>
                             {vendor.name}
                           </SelectItem>
@@ -170,6 +167,25 @@ export function ExchangeForm() {
                 />
               </div>
               {errors.exchangeRate && <p className="text-sm text-destructive">{errors.exchangeRate.message}</p>}
+            </div>
+
+            {/* Transaction Date Picker */}
+            <div className="space-y-2">
+              <Label htmlFor="transactionDate">Transaction Date *</Label>
+              <Controller
+                name="transactionDate"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="transactionDate"
+                    type="date"
+                    value={field.value ? field.value.slice(0, 10) : ""}
+                    onChange={e => field.onChange(e.target.value)}
+                    className={errors.transactionDate ? "border-destructive" : ""}
+                  />
+                )}
+              />
+              {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
             </div>
 
             {/* Calculated USD Amount */}

@@ -10,10 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { customersApi, vendorsApi, vendorPaymentsApi } from "@/lib/api"
+import { customersApi, vendorsApi, vendorPaymentsApi, walletApi } from "@/lib/api"
 import { vendorPaymentSchema, type VendorPaymentFormData } from "@/lib/validations/vendor-payment"
 import { Loader2, Send, AlertTriangle, Wallet } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Calendar } from "@/components/ui/calendar"
 
 export function VendorPaymentForm() {
   const router = useRouter()
@@ -36,6 +37,7 @@ export function VendorPaymentForm() {
       vendorId: "",
       amountUSD: 0,
       description: "",
+      transactionDate: new Date().toISOString().slice(0, 10),
     },
   })
 
@@ -43,34 +45,23 @@ export function VendorPaymentForm() {
   const amountUSD = watch("amountUSD")
 
   // Load customers for dropdown
-  const { data: customers = [], isLoading: loadingCustomers } = useQuery({
+  const { data: customersData, isLoading: loadingCustomers } = useQuery({
     queryKey: ["customers-dropdown"],
-    // Use mock data for development
-    queryFn: () =>
-      Promise.resolve({
-        customers: [
-          { id: "1", name: "John Doe", balanceUSD: 1250.5 },
-          { id: "2", name: "Jane Smith", balanceUSD: 750.25 },
-          { id: "3", name: "Alice Johnson", balanceUSD: 2100.75 },
-          { id: "4", name: "Bob Wilson", balanceUSD: 0 },
-        ],
-      }),
-    select: (data) => data.customers || data,
+    queryFn: () => customersApi.getAll({ limit: 100 }),
   })
 
   // Load payment vendors
-  const { data: vendors = [], isLoading: loadingVendors } = useQuery({
+  const { data: vendorsData, isLoading: loadingVendors } = useQuery({
     queryKey: ["vendors-payment"],
-    // Use mock data for development
-    queryFn: () =>
-      Promise.resolve({
-        vendors: [
-          { id: "2", name: "Payment Vendor B", type: "PAYMENT" },
-          { id: "4", name: "Payment Vendor D", type: "PAYMENT" },
-        ],
-      }),
-    select: (data) => data.vendors || data,
+    queryFn: () => vendorsApi.getAll({ type: "PAYMENT", limit: 100 }),
   })
+
+  // Fetch wallet balance
+  const { data: walletData, isLoading: loadingWallet } = useQuery({
+    queryKey: ["wallet-balance"],
+    queryFn: () => walletApi.getData(),
+  })
+  const walletBalance = walletData?.balance ?? 0
 
   const createPaymentMutation = useMutation({
     mutationFn: vendorPaymentsApi.create,
@@ -86,21 +77,27 @@ export function VendorPaymentForm() {
       router.push("/vendor-payments")
     },
     onError: (error: any) => {
+      let errorMessage = error?.message || "Failed to process payment."
+      if (error?.details?.response?.message) {
+        errorMessage = error.details.response.message
+      }
       toast({
         title: "Error",
-        description: error.message || "Failed to process payment.",
+        description: errorMessage,
         variant: "destructive",
       })
     },
   })
 
   const onSubmit = (data: VendorPaymentFormData) => {
-    createPaymentMutation.mutate(data)
+    const isoDate = data.transactionDate ? new Date(data.transactionDate + 'T00:00:00').toISOString() : undefined
+    createPaymentMutation.mutate({ ...data, transactionDate: isoDate as any })
   }
 
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
-  const selectedVendor = vendors.find((v) => v.id === watch("vendorId"))
-  const hasInsufficientBalance = selectedCustomer && amountUSD > selectedCustomer.balanceUSD
+  const selectedCustomer = customersData?.customers?.find((c) => c.id === selectedCustomerId)
+  const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
+  const hasInsufficientCustomerBalance = selectedCustomer && amountUSD > selectedCustomer.balanceUSD
+  const hasInsufficientWalletBalance = amountUSD > walletBalance
   const newBalance = selectedCustomer ? selectedCustomer.balanceUSD - amountUSD : 0
 
   return (
@@ -130,8 +127,12 @@ export function VendorPaymentForm() {
                         <SelectItem value="loading" disabled>
                           Loading customers...
                         </SelectItem>
+                      ) : customersData?.customers?.length === 0 ? (
+                        <SelectItem value="no-customers" disabled>
+                          No customers available
+                        </SelectItem>
                       ) : (
-                        customers.map((customer) => (
+                        customersData?.customers?.map((customer) => (
                           <SelectItem key={customer.id} value={customer.id}>
                             <div className="flex justify-between items-center w-full">
                               <span>{customer.name}</span>
@@ -170,12 +171,12 @@ export function VendorPaymentForm() {
                         <SelectItem value="loading" disabled>
                           Loading vendors...
                         </SelectItem>
-                      ) : vendors.length === 0 ? (
+                      ) : vendorsData?.vendors?.length === 0 ? (
                         <SelectItem value="no-vendors" disabled>
                           No payment vendors available
                         </SelectItem>
                       ) : (
-                        vendors.map((vendor) => (
+                        vendorsData?.vendors?.map((vendor) => (
                           <SelectItem key={vendor.id} value={vendor.id}>
                             {vendor.name}
                           </SelectItem>
@@ -198,19 +199,46 @@ export function VendorPaymentForm() {
                   type="number"
                   step="0.01"
                   placeholder="0.00"
-                  className={`pl-8 ${errors.amountUSD || hasInsufficientBalance ? "border-destructive" : ""}`}
+                  className={`pl-8 ${errors.amountUSD || hasInsufficientCustomerBalance || hasInsufficientWalletBalance ? "border-destructive" : ""}`}
                   {...register("amountUSD", { valueAsNumber: true })}
                 />
               </div>
               {errors.amountUSD && <p className="text-sm text-destructive">{errors.amountUSD.message}</p>}
-              {hasInsufficientBalance && (
+              {hasInsufficientCustomerBalance && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    Insufficient balance. Customer has ${selectedCustomer.balanceUSD.toFixed(2)} USD available.
+                    Insufficient customer balance. Customer has ${selectedCustomer.balanceUSD.toFixed(2)} USD available.
                   </AlertDescription>
                 </Alert>
               )}
+              {hasInsufficientWalletBalance && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Insufficient wallet balance. Wallet has ${walletBalance.toFixed(2)} USD available.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            {/* Transaction Date Picker */}
+            <div className="space-y-2">
+              <Label htmlFor="transactionDate">Transaction Date *</Label>
+              <Controller
+                name="transactionDate"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="transactionDate"
+                    type="date"
+                    value={field.value ? field.value.slice(0, 10) : ""}
+                    onChange={e => field.onChange(e.target.value)}
+                    className={errors.transactionDate ? "border-destructive" : ""}
+                  />
+                )}
+              />
+              {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
             </div>
 
             {/* Description */}
@@ -231,7 +259,7 @@ export function VendorPaymentForm() {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={createPaymentMutation.isPending || hasInsufficientBalance || amountUSD === 0}
+                disabled={createPaymentMutation.isPending || hasInsufficientCustomerBalance || hasInsufficientWalletBalance || amountUSD === 0}
               >
                 {createPaymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Send Payment
@@ -245,7 +273,7 @@ export function VendorPaymentForm() {
       </Card>
 
       {/* Payment Summary */}
-      {selectedCustomer && selectedVendor && amountUSD > 0 && !hasInsufficientBalance && (
+      {selectedCustomer && selectedVendor && amountUSD > 0 && !hasInsufficientCustomerBalance && !hasInsufficientWalletBalance && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <h3 className="font-medium mb-3 flex items-center gap-2">

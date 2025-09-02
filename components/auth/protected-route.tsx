@@ -32,7 +32,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       return
     }
 
-    if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    // Grant CLIENT full access: if user is CLIENT, bypass allowedRoles checks
+    if (allowedRoles && user && user.role !== "CLIENT" && !allowedRoles.includes(user.role)) {
       router.push("/unauthorized")
       return
     }
@@ -50,7 +51,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return null
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user && user.role !== "CLIENT" && !allowedRoles.includes(user.role)) {
     return null
   }
 
