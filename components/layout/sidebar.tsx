@@ -137,7 +137,7 @@ export function Sidebar() {
     )}>
       <div className="flex flex-col h-full bg-gradient-to-b from-blue-800 to-blue-900 shadow-xl">
         {/* Logo Section */}
-        <div className="flex items-center px-6 py-6 border-b border-blue-700/30 relative">
+        <div className="flex items-center px-6 py-6 bg-white border-b border-gray-200 relative">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center">
               <img 
@@ -183,7 +183,7 @@ export function MobileSidebar() {
       <SheetContent side="left" className="p-0 w-64 bg-gradient-to-b from-blue-800 to-blue-900">
         <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
         {/* Logo Section for Mobile */}
-        <div className="flex items-center px-6 py-6 border-b border-blue-700/30">
+        <div className="flex items-center px-6 py-6 bg-white border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center">
               <img 

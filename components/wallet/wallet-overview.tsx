@@ -8,6 +8,8 @@ interface WalletOverviewProps {
 }
 
 export function WalletOverview({ balance, totalCustomerBalanceUSD }: WalletOverviewProps) {
+  const balanceAED = balance * 3.65;
+  const totalCustomerBalanceAED = totalCustomerBalanceUSD * 3.65;
   return (
     <div className="space-y-6">
       {/* Balance Cards */}
@@ -19,6 +21,7 @@ export function WalletOverview({ balance, totalCustomerBalanceUSD }: WalletOverv
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${balance.toLocaleString()}</div>
+            <div className="text-sm text-muted-foreground">AED {balanceAED.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">Available for customer payments</p>
           </CardContent>
         </Card>
@@ -30,6 +33,7 @@ export function WalletOverview({ balance, totalCustomerBalanceUSD }: WalletOverv
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totalCustomerBalanceUSD.toLocaleString()}</div>
+            <div className="text-sm text-muted-foreground">AED {totalCustomerBalanceAED.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">Sum of all customers' USD balances</p>
           </CardContent>
         </Card>

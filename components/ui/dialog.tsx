@@ -32,7 +32,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onCloseAutoFocus, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -42,6 +42,18 @@ const DialogContent = React.forwardRef<
         className
       )}
       aria-describedby={undefined}
+      // Prevent Radix from restoring focus to an element that may now be hidden (e.g., popper content)
+      onCloseAutoFocus={(event) => {
+        if (onCloseAutoFocus) {
+          onCloseAutoFocus(event)
+          return
+        }
+        event.preventDefault()
+        // Optionally, move focus to body to avoid leaving it on a hidden element
+        if (typeof window !== "undefined") {
+          ;(document.activeElement as HTMLElement | null)?.blur?.()
+        }
+      }}
       {...props}
     >
       {children}

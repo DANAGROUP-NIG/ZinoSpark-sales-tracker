@@ -82,12 +82,25 @@ export function WalletTransactions() {
                   <TableRow key={transaction.id}>
                     <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{transaction.type}</Badge>
+                      {transaction.type === 'DEBIT' ? (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200">
+                          {transaction.type}
+                        </Badge>
+                      ) : transaction.type === 'CREDIT' ? (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200">
+                          {transaction.type}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">{transaction.type}</Badge>
+                      )}
                     </TableCell>
                     <TableCell>{transaction.description}</TableCell>
-                    <TableCell className="font-medium text-green-600">${transaction.amount.toLocaleString()}</TableCell>
+                    <TableCell className={`font-medium ${transaction.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>${transaction.amount.toLocaleString()}</TableCell>
                     <TableCell>
-                      <Badge variant={transaction.status === "COMPLETED" ? "default" : "secondary"}>
+                      <Badge 
+                        variant={transaction.status === "COMPLETED" ? "secondary" : "secondary"}
+                        className={transaction.status === "COMPLETED" ? "bg-green-100 text-green-800 hover:bg-green-200 border-green-200" : ""}
+                      >
                         {transaction.status}
                       </Badge>
                     </TableCell>
@@ -111,11 +124,25 @@ export function WalletTransactions() {
                       <p className="font-medium">{transaction.description}</p>
                       <p className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString()}</p>
                     </div>
-                    <p className="font-medium text-green-600">+${transaction.amount.toLocaleString()}</p>
+                    <p className={`font-medium ${transaction.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>{transaction.type === 'DEBIT' ? '-' : '+'}${transaction.amount.toLocaleString()}</p>
                   </div>
                   <div className="flex justify-between items-center">
-                    <Badge variant="secondary">{transaction.type}</Badge>
-                    <Badge variant={transaction.status === "COMPLETED" ? "default" : "secondary"}>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        transaction.type === 'DEBIT'
+                          ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200'
+                          : transaction.type === 'CREDIT'
+                          ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200'
+                          : ''
+                      }
+                    >
+                      {transaction.type}
+                    </Badge>
+                    <Badge 
+                      variant={transaction.status === "COMPLETED" ? "secondary" : "secondary"}
+                      className={transaction.status === "COMPLETED" ? "bg-green-100 text-green-800 hover:bg-green-200 border-green-200" : ""}
+                    >
                       {transaction.status}
                     </Badge>
                   </div>

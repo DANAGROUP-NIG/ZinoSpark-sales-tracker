@@ -39,11 +39,7 @@ function getStatusBadge(status: string) {
 export function RecentActivity() {
   const { data: activities, isLoading } = useQuery({
     queryKey: ["recent-activity"],
-    queryFn: async () => {
-      const metrics = await dashboardApi.getMetrics()
-      // No recentActivity array in backend; show last few synthetic entries using raw totals
-      return []
-    },
+    queryFn: dashboardApi.getRecentActivity,
   })
 
   return (
@@ -67,13 +63,13 @@ export function RecentActivity() {
               </div>
             ))}
           </div>
-        ) : activities?.length === 0 ? (
+        ) : !activities || activities.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No recent activity
           </div>
         ) : (
           <div className="space-y-4">
-            {activities?.map((activity) => (
+            {activities.map((activity: any) => (
               <div key={activity.id} className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                   {getActivityIcon(activity.type)}
@@ -81,11 +77,15 @@ export function RecentActivity() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{activity.description}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <p className="text-xs text-muted-foreground">{new Date(activity.date).toLocaleDateString()}</p>
-                    <Badge variant="secondary">Completed</Badge>
+                    <p className="text-xs text-muted-foreground">{new Date(activity.createdAt).toLocaleDateString()}</p>
+                    {activity.status && getStatusBadge(activity.status.toUpperCase())}
                   </div>
                 </div>
-                <div className="text-sm font-medium">${activity.amount.toLocaleString()}</div>
+                <div className="text-sm font-medium">
+                  {activity.currency === "USD"
+                    ? `$${activity.amount.toLocaleString()}`
+                    : `₦${activity.amount.toLocaleString()}`}
+                </div>
               </div>
             ))}
           </div>
@@ -94,3 +94,4 @@ export function RecentActivity() {
     </Card>
   )
 }
+

@@ -204,6 +204,10 @@ export const dashboardApi = {
       raw: data,
     }
   },
+  getRecentActivity: async () => {
+    const res = await fetchApi<any>("/dashboard/recent-activity")
+    return res?.data ?? []
+  },
 }
 
 // Vendors API
@@ -347,6 +351,7 @@ export const api = {
 
   // Dashboard
   getDashboardMetrics: dashboardApi.getMetrics,
+  getDashboardRecentActivity: dashboardApi.getRecentActivity,
 
   // Customers
   getCustomers: customersApi.getAll,
