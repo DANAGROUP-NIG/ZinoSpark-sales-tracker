@@ -11,11 +11,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from "@/hooks/use-toast"
 import { customersApi } from "@/lib/api"
 import { CustomerModal } from "./customer-modal"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 import { Search, MoreHorizontal, Edit, Trash2, Eye, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import type { Customer } from "@/lib/types"
 
 export function CustomersTable() {
+  const { showUsd } = useUsdVisibilityStore()
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
@@ -159,7 +161,7 @@ export function CustomersTable() {
                   <TableCell>{customer.phone || "-"}</TableCell>
                   <TableCell>
                     <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"}>
-                      {formatCurrency(customer.balanceUSD)}
+                      {showUsd ? formatCurrency(customer.balanceUSD) : <span className="tracking-widest">*****</span>}
                     </Badge>
                   </TableCell>
                   <TableCell>{formatDate(customer.updatedAt)}</TableCell>
@@ -252,7 +254,7 @@ export function CustomersTable() {
                 </div>
                 <div className="flex justify-between items-center">
                   <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"}>
-                    {formatCurrency(customer.balanceUSD)}
+                    {showUsd ? formatCurrency(customer.balanceUSD) : <span className="tracking-widest">*****</span>}
                   </Badge>
                   <span className="text-xs text-muted-foreground">Updated {formatDate(customer.updatedAt)}</span>
                 </div>

@@ -4,12 +4,14 @@ import { MobileSidebar } from "./sidebar"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 
 export function Header() {
   const { user, logout } = useAuthStore()
   const router = useRouter()
+  const { showUsd, toggleUsd } = useUsdVisibilityStore()
 
   const handleLogout = () => {
     logout()
@@ -30,6 +32,17 @@ export function Header() {
         </div>
         
         <div className="flex items-center gap-4">
+          {/* USD Visibility Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={showUsd ? "Hide USD amounts" : "Show USD amounts"}
+            onClick={toggleUsd}
+            className="mr-2"
+            title={showUsd ? "Hide USD amounts" : "Show USD amounts"}
+          >
+            {showUsd ? <Eye className="h-5 w-5 text-gray-500" /> : <EyeOff className="h-5 w-5 text-gray-500" />}
+          </Button>
           {/* User Profile */}
           <div className="flex items-center gap-3 bg-gray-50 px-3 py-2 rounded-lg">
             <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-full">

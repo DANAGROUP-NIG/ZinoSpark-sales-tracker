@@ -102,6 +102,7 @@ export default function WalletPage() {
             <WalletOverview
               balance={walletData?.balance || 0}
               totalCustomerBalanceUSD={walletData?.customerBalanceUSD || 0}
+              pendingExchangesUSD={walletData?.pendingExchangesUSD || 0}
             />
           </TabsContent>
 

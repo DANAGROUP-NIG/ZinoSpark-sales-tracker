@@ -161,11 +161,13 @@ export const customersApi = {
 
 // Payments API
 export const paymentsApi = {
-  getAll: (params?: { page?: number; limit?: number; customerId?: string }) => {
+  getAll: (params?: { page?: number; limit?: number; customerId?: string; startDate?: string; endDate?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
     const qs = searchParams.toString();
     return fetchApi<any>(`/payments${qs ? `?${qs}` : ''}`)
       .then((res) => {
@@ -207,6 +209,14 @@ export const dashboardApi = {
   getRecentActivity: async () => {
     const res = await fetchApi<any>("/dashboard/recent-activity")
     return res?.data ?? []
+  },
+  getSummary: (params?: { customerId?: string; startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/payments/summary${qs ? `?${qs}` : ''}`)
   },
 }
 
@@ -278,15 +288,22 @@ export const exchangesApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  addReceipt: (id: string, data: { amountUSD: number; transactionDate?: string }) =>
+    fetchApi<any>(`/exchanges/${id}/receipts`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 }
 
 // Vendor Payments API
 export const vendorPaymentsApi = {
-  getAll: (params?: { page?: number; limit?: number; customerId?: string }) => {
+  getAll: (params?: { page?: number; limit?: number; customerId?: string; startDate?: string; endDate?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page !== undefined) searchParams.append('page', params.page.toString());
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
     if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
     const qs = searchParams.toString();
     return fetchApi<any>(`/vendor-payments${qs ? `?${qs}` : ''}`)
       .then((res) => {
@@ -314,7 +331,9 @@ export const walletApi = {
     const data = res?.data ?? res
     return {
       balance: data?.totalUSD ?? 0,
-      customerBalanceUSD: data?.totalCustomerBalanceUSD ?? 0,
+      customerBalanceUSD: data?.availableCustomerBalanceUSD ?? data?.totalCustomerBalanceUSD ?? 0,
+      pendingExchangesUSD: data?.pendingExchangesUSD ?? 0,
+      totalCustomerBalanceUSD: data?.totalCustomerBalanceUSD ?? undefined,
       updatedAt: data?.updatedAt,
     }
   },
@@ -341,6 +360,7 @@ export const walletApi = {
       totalPages: pagination.totalPages ?? 1,
     }
   },
+  
 }
 
 // Convenience function for wallet data

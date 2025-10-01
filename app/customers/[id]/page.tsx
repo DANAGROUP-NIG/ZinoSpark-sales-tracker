@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { customersApi, paymentsApi, vendorPaymentsApi } from "@/lib/api"
-import { ArrowLeft, Mail, Phone, Wallet, Calendar } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Wallet, Calendar, Share2 } from "lucide-react"
 import Link from "next/link"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 
 export default function CustomerDetailPage() {
   const params = useParams()
@@ -52,6 +53,24 @@ export default function CustomerDetailPage() {
       return `$${safe.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
     }
     return `₦${safe.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+  }
+
+  const { showUsd } = useUsdVisibilityStore()
+  const AED_RATE = 3.67
+  const renderUsdWithAed = (usd?: number) => {
+    const safe = typeof usd === 'number' && isFinite(usd) ? usd : 0
+    const aed = safe * AED_RATE
+    return (
+      <div className="flex flex-col items-end">
+        <span className="font-medium">{showUsd ? `$${safe.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : <span className="tracking-widest">*****</span>}</span>
+        <span className="text-xs text-muted-foreground">AED {aed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>
+    )
+  }
+
+  const shareToWhatsApp = (text: string) => {
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`
+    window.open(url, "_blank")
   }
 
   if (customerLoading) {
@@ -123,9 +142,12 @@ export default function CustomerDetailPage() {
                   <Wallet className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Current Balance</span>
                 </div>
-                <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
-                  {formatCurrency(customer.balanceUSD)}
-                </Badge>
+                <div className="text-right">
+                  <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
+                    {showUsd ? formatCurrency(customer.balanceUSD) : <span className="tracking-widest">*****</span>}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground mt-1">AED {(customer.balanceUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -177,13 +199,34 @@ export default function CustomerDetailPage() {
                   <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <p className="font-medium">
-                        {formatCurrency(payment.amountNaira, "NGN")} → {formatCurrency(payment.amountUSD)}
+                        {formatCurrency(payment.amountNaira, "NGN")} →
+                        {showUsd ? ` ${formatCurrency(payment.amountUSD)}` : ' '}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Rate: ₦{payment.exchangeRate}/USD • {formatDate(payment.transactionDate || payment.createdAt)}
                       </p>
+                      <p className="text-xs text-muted-foreground">AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      {(payment.balanceBeforeUSD !== undefined || payment.balanceAfterUSD !== undefined) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Prev: {showUsd ? formatCurrency(payment.balanceBeforeUSD) : '*****'} • Curr: {showUsd ? formatCurrency(payment.balanceAfterUSD) : '*****'}
+                        </p>
+                      )}
                     </div>
-                    <Badge>Completed</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge>Completed</Badge>
+                      <Button size="icon" variant="ghost" onClick={() => {
+                        const lines = [
+                          `Payment: ${formatCurrency(payment.amountNaira, 'NGN')} → ${showUsd ? formatCurrency(payment.amountUSD) : 'USD hidden'} (AED ${(payment.amountUSD * AED_RATE).toFixed(2)})`,
+                          `Rate: ₦${payment.exchangeRate}/USD`,
+                          `Date: ${formatDate(payment.transactionDate || payment.createdAt)}`,
+                        ]
+                        if (payment.balanceBeforeUSD !== undefined) lines.push(`Prev: ${showUsd ? formatCurrency(payment.balanceBeforeUSD) : 'hidden'}`)
+                        if (payment.balanceAfterUSD !== undefined) lines.push(`Curr: ${showUsd ? formatCurrency(payment.balanceAfterUSD) : 'hidden'}`)
+                        shareToWhatsApp(lines.join("\n"))
+                      }}>
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -216,12 +259,32 @@ export default function CustomerDetailPage() {
                 {(hasEmbedded ? embeddedVendorPayments : vendorPaymentsData?.vendorPayments || []).map((payment: any) => (
                   <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
-                      <p className="font-medium">{formatCurrency(payment.amountUSD)}</p>
+                      <div className="font-medium">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</div>
+                      <p className="text-xs text-muted-foreground">AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       <p className="text-sm text-muted-foreground">
                         {payment.description || "No description"} • {formatDate(payment.transactionDate || payment.createdAt)}
                       </p>
+                      {(payment.balanceBeforeUSD !== undefined || payment.balanceAfterUSD !== undefined) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Prev: {showUsd ? formatCurrency(payment.balanceBeforeUSD) : '*****'} • Curr: {showUsd ? formatCurrency(payment.balanceAfterUSD) : '*****'}
+                        </p>
+                      )}
                     </div>
-                    <Badge>Completed</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge>Completed</Badge>
+                      <Button size="icon" variant="ghost" onClick={() => {
+                        const lines = [
+                          `Vendor Payment: ${showUsd ? formatCurrency(payment.amountUSD) : 'USD hidden'} (AED ${(payment.amountUSD * AED_RATE).toFixed(2)})`,
+                          `Date: ${formatDate(payment.transactionDate || payment.createdAt)}`,
+                          `Description: ${payment.description || 'N/A'}`,
+                        ]
+                        if (payment.balanceBeforeUSD !== undefined) lines.push(`Prev: ${showUsd ? formatCurrency(payment.balanceBeforeUSD) : 'hidden'}`)
+                        if (payment.balanceAfterUSD !== undefined) lines.push(`Curr: ${showUsd ? formatCurrency(payment.balanceAfterUSD) : 'hidden'}`)
+                        shareToWhatsApp(lines.join("\n"))
+                      }}>
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

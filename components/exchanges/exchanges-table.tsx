@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { exchangesApi } from "@/lib/api"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 import { Search, Plus, Filter, MoreHorizontal, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import type { CurrencyExchange } from "@/lib/types"
@@ -24,6 +25,8 @@ export function ExchangesTable() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
+  const { showUsd } = useUsdVisibilityStore()
+  const AED_RATE = 3.67
 
   const { data, isLoading } = useQuery({
     queryKey: ["exchanges", { page, status: statusFilter, limit }],
@@ -49,8 +52,33 @@ export function ExchangesTable() {
     },
   })
 
+  const addReceiptMutation = useMutation({
+    mutationFn: ({ id, amountUSD, transactionDate }: { id: string; amountUSD: number; transactionDate?: string }) =>
+      exchangesApi.addReceipt(id, { amountUSD, transactionDate }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exchanges"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
+      toast({ title: "Receipt added", description: "Partial receipt recorded successfully." })
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add receipt.", variant: "destructive" })
+    },
+  })
+
   const handleStatusUpdate = (exchange: CurrencyExchange, newStatus: string) => {
     updateStatusMutation.mutate({ id: exchange.id, status: newStatus })
+  }
+
+  const handleAddReceipt = (exchange: any) => {
+    const amountStr = window.prompt("Enter received amount in USD:")
+    if (!amountStr) return
+    const amount = parseFloat(amountStr)
+    if (!isFinite(amount) || amount <= 0) {
+      toast({ title: "Invalid amount", description: "Please enter a valid positive number.", variant: "destructive" })
+      return
+    }
+    const dateStr = window.prompt("Enter receipt date (optional, YYYY-MM-DD):") || undefined
+    addReceiptMutation.mutate({ id: exchange.id, amountUSD: amount, transactionDate: dateStr })
   }
 
   const formatDate = (dateString: string) => {
@@ -91,7 +119,7 @@ export function ExchangesTable() {
   const canUpdateStatus = user?.role === "PARTNER" || user?.role === "CLIENT"
 
   // Filter exchanges locally based on search
-  const filteredExchanges = data?.exchanges?.filter(exchange => 
+  const filteredExchanges = data?.exchanges?.filter((exchange: any) => 
     exchange.vendor?.name?.toLowerCase().includes(search.toLowerCase())
   ) || []
 
@@ -148,15 +176,20 @@ export function ExchangesTable() {
               <TableHead>Amount (NGN)</TableHead>
               <TableHead>Exchange Rate</TableHead>
               <TableHead>Amount (USD)</TableHead>
+              <TableHead>AED</TableHead>
+              <TableHead>Remaining</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date</TableHead>
-              {canUpdateStatus && <TableHead className="w-[70px]">Actions</TableHead>}
+              {canUpdateStatus && <TableHead className="w-[90px]">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               [...Array(limit)].map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell>
+                    <div className="h-4 bg-muted rounded animate-pulse" />
+                  </TableCell>
                   <TableCell>
                     <div className="h-4 bg-muted rounded animate-pulse" />
                   </TableCell>
@@ -184,17 +217,19 @@ export function ExchangesTable() {
               ))
             ) : filteredExchanges.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canUpdateStatus ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={canUpdateStatus ? 9 : 8} className="text-center py-8 text-muted-foreground">
                   {search ? "No exchanges match your search" : "No exchanges found"}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredExchanges.map((exchange) => (
+              filteredExchanges.map((exchange: any) => (
                 <TableRow key={exchange.id}>
                   <TableCell className="font-medium">{exchange.vendor?.name || "Unknown Vendor"}</TableCell>
                   <TableCell>{formatCurrency(exchange.amountNaira, "NGN")}</TableCell>
                   <TableCell>₦{exchange.exchangeRate.toLocaleString()}</TableCell>
-                  <TableCell className="font-medium">{formatCurrency(exchange.amountUSD)}</TableCell>
+                  <TableCell className="font-medium">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
+                  <TableCell>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="text-sm">{showUsd ? `$${(exchange.remainingUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</TableCell>
                   <TableCell>{getStatusBadge(exchange.status)}</TableCell>
                   <TableCell>{formatDate(exchange.createdAt)}</TableCell>
                   {canUpdateStatus && (
@@ -207,6 +242,10 @@ export function ExchangesTable() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleAddReceipt(exchange)}>
+                              <CheckCircle className="mr-2 h-4 w-4 text-blue-600" />
+                              Add Receipt
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleStatusUpdate(exchange, "RECEIVED")}>
                               <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
                               Mark as Received
@@ -248,7 +287,7 @@ export function ExchangesTable() {
             </CardContent>
           </Card>
         ) : (
-          filteredExchanges.map((exchange) => (
+          filteredExchanges.map((exchange: any) => (
             <Card key={exchange.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -266,6 +305,10 @@ export function ExchangesTable() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleAddReceipt(exchange)}>
+                            <CheckCircle className="mr-2 h-4 w-4 text-blue-600" />
+                            Add Receipt
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleStatusUpdate(exchange, "RECEIVED")}>
                             <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
                             Mark as Received
@@ -290,8 +333,21 @@ export function ExchangesTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">USD:</span>
-                    <span className="font-bold text-purple-600">{formatCurrency(exchange.amountUSD)}</span>
+                    <span className="font-bold text-purple-600">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">AED:</span>
+                    <span>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Remaining:</span>
+                    <span>{showUsd ? `$${(exchange.remainingUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</span>
+                  </div>
+                  {canUpdateStatus && exchange.status === "PENDING" && (
+                    <div className="pt-2">
+                      <Button variant="outline" size="sm" onClick={() => handleAddReceipt(exchange)}>Add Receipt</Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

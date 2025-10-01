@@ -11,16 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import { paymentsApi, customersApi } from "@/lib/api"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 
 export function PaymentsTable() {
   const [search, setSearch] = useState("")
   const [customerFilter, setCustomerFilter] = useState("all")
   const [page, setPage] = useState(1)
+  const [startDate, setStartDate] = useState<string | undefined>(undefined)
+  const [endDate, setEndDate] = useState<string | undefined>(undefined)
   const [limit] = useState(10)
 
   const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["payments", { page, customerId: customerFilter, limit }],
-    queryFn: () => paymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter }),
+    queryKey: ["payments", { page, customerId: customerFilter, limit, startDate, endDate }],
+    queryFn: () => paymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
+  })
+
+  const { data: summary } = useQuery({
+    queryKey: ["payments-summary", { customerId: customerFilter, startDate, endDate }],
+    queryFn: () => paymentsApi.getSummary({ customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
   const { data: customersData } = useQuery({
@@ -58,6 +66,9 @@ export function PaymentsTable() {
   const totalPages = paymentsData?.totalPages || 1
   const totalPayments = paymentsData?.total || 0
 
+  const { showUsd } = useUsdVisibilityStore()
+  const AED_RATE = 3.67
+
   const handlePageChange = (newPage: number) => {
     setPage(newPage)
   }
@@ -76,6 +87,8 @@ export function PaymentsTable() {
               className="pl-10"
             />
           </div>
+          <Input type="date" value={startDate || ''} onChange={(e) => setStartDate(e.target.value || undefined)} className="w-full sm:w-44" />
+          <Input type="date" value={endDate || ''} onChange={(e) => setEndDate(e.target.value || undefined)} className="w-full sm:w-44" />
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
             <SelectTrigger className="w-full sm:w-48">
               <Filter className="mr-2 h-4 w-4" />
@@ -99,6 +112,16 @@ export function PaymentsTable() {
         </Button>
       </div>
 
+      {/* Summary */}
+      {summary && Array.isArray(summary) && summary.length > 0 && (
+        <div className="rounded-md border p-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Summary ({summary[0].date} ...)</span>
+            <span className="font-medium">USD: ${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()} • NGN: ₦{summary.reduce((a:number, s:any)=>a+(s.totalAmountNaira||0),0).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+
       {/* Desktop Table */}
       <div className="hidden md:block rounded-md border">
         <Table>
@@ -108,6 +131,7 @@ export function PaymentsTable() {
               <TableHead>Amount (NGN)</TableHead>
               <TableHead>Exchange Rate</TableHead>
               <TableHead>Amount (USD)</TableHead>
+              <TableHead>AED</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -148,7 +172,8 @@ export function PaymentsTable() {
                   <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{formatCurrency(payment.amountNaira, "NGN")}</TableCell>
                   <TableCell>₦{payment.exchangeRate.toLocaleString()}</TableCell>
-                  <TableCell className="font-medium">{formatCurrency(payment.amountUSD)}</TableCell>
+                  <TableCell className="font-medium">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
+                  <TableCell>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                   <TableCell>{formatDate(payment.createdAt)}</TableCell>
                   <TableCell>
                     <Badge className="bg-green-100 hover:bg-green-200 text-green-600">
@@ -204,7 +229,11 @@ export function PaymentsTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">USD:</span>
-                    <span className="font-bold text-purple-600">{formatCurrency(payment.amountUSD)}</span>
+                    <span className="font-bold text-purple-600">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">AED:</span>
+                    <span>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </CardContent>

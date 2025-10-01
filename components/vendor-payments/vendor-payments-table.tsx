@@ -11,16 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { vendorPaymentsApi, customersApi, vendorsApi } from "@/lib/api"
 import { Search, Plus, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 
 export function VendorPaymentsTable() {
   const [search, setSearch] = useState("")
   const [customerFilter, setCustomerFilter] = useState("all")
   const [page, setPage] = useState(1)
+  const [startDate, setStartDate] = useState<string | undefined>(undefined)
+  const [endDate, setEndDate] = useState<string | undefined>(undefined)
   const [limit] = useState(10)
 
   const { data: vendorPaymentsData, isLoading: vendorPaymentsLoading } = useQuery({
-    queryKey: ["vendor-payments", { page, customerId: customerFilter, limit }],
-    queryFn: () => vendorPaymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter }),
+    queryKey: ["vendor-payments", { page, customerId: customerFilter, limit, startDate, endDate }],
+    queryFn: () => vendorPaymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
+  })
+
+  const { data: summary } = useQuery({
+    queryKey: ["vendor-payments-summary", { customerId: customerFilter, startDate, endDate }],
+    queryFn: () => vendorPaymentsApi.getSummary({ customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
   const { data: customersData } = useQuery({
@@ -65,6 +73,8 @@ export function VendorPaymentsTable() {
 
   const totalPages = vendorPaymentsData?.totalPages || 1
   const totalVendorPayments = vendorPaymentsData?.total || 0
+  const { showUsd } = useUsdVisibilityStore()
+  const AED_RATE = 3.67
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage)
@@ -84,6 +94,8 @@ export function VendorPaymentsTable() {
               className="pl-10"
             />
           </div>
+          <Input type="date" value={startDate || ''} onChange={(e) => setStartDate(e.target.value || undefined)} className="w-full sm:w-44" />
+          <Input type="date" value={endDate || ''} onChange={(e) => setEndDate(e.target.value || undefined)} className="w-full sm:w-44" />
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
             <SelectTrigger className="w-full sm:w-48">
               <Filter className="mr-2 h-4 w-4" />
@@ -107,6 +119,16 @@ export function VendorPaymentsTable() {
         </Button>
       </div>
 
+      {/* Summary */}
+      {summary && Array.isArray(summary) && summary.length > 0 && (
+        <div className="rounded-md border p-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Summary ({summary[0].date} ...)</span>
+            <span className="font-medium">USD: ${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+
       {/* Desktop Table */}
       <div className="hidden md:block rounded-md border">
         <Table>
@@ -115,6 +137,7 @@ export function VendorPaymentsTable() {
               <TableHead>Customer</TableHead>
               <TableHead>Vendor</TableHead>
               <TableHead>Amount (USD)</TableHead>
+              <TableHead>AED</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
@@ -155,7 +178,8 @@ export function VendorPaymentsTable() {
                 <TableRow key={payment.id}>
                   <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{getVendorName(payment.vendorId)}</TableCell>
-                  <TableCell className="font-medium">{formatCurrency(payment.amountUSD)}</TableCell>
+                  <TableCell className="font-medium">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
+                  <TableCell>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                   <TableCell>
                     <div className="max-w-xs">
                       {payment.description ? (
@@ -209,7 +233,8 @@ export function VendorPaymentsTable() {
                     <p className="text-xs text-muted-foreground mt-1">{formatDate(payment.createdAt)}</p>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-purple-600 text-lg">{formatCurrency(payment.amountUSD)}</div>
+                    <div className="font-bold text-purple-600 text-lg">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</div>
+                    <div className="text-xs text-muted-foreground">AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     <Badge className="mt-1">Completed</Badge>
                   </div>
                 </div>
