@@ -223,7 +223,7 @@ export function VendorPaymentForm() {
             </div>
 
             {/* Transaction Date Picker */}
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="transactionDate">Transaction Date *</Label>
               <Controller
                 name="transactionDate"
@@ -239,7 +239,7 @@ export function VendorPaymentForm() {
                 )}
               />
               {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
-            </div>
+            </div> */}
 
             {/* Description */}
             <div className="space-y-2">

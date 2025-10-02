@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,9 +17,34 @@ export function VendorPaymentsTable() {
   const [search, setSearch] = useState("")
   const [customerFilter, setCustomerFilter] = useState("all")
   const [page, setPage] = useState(1)
-  const [startDate, setStartDate] = useState<string | undefined>(undefined)
-  const [endDate, setEndDate] = useState<string | undefined>(undefined)
+  const [rangePreset, setRangePreset] = useState<"today" | "yesterday" | "week" | "month" | "custom">("today")
+  const [customDays, setCustomDays] = useState<number>(30)
   const [limit] = useState(10)
+
+  const { startDate, endDate } = useMemo(() => {
+    const toDateOnly = (d: Date) => d.toISOString().slice(0,10)
+    const end = new Date(); end.setHours(23,59,59,999)
+    if (rangePreset === "today") {
+      const s = new Date(); s.setHours(0,0,0,0)
+      return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+    }
+    if (rangePreset === "yesterday") {
+      const yStart = new Date(); yStart.setDate(yStart.getDate() - 1); yStart.setHours(0,0,0,0)
+      const yEnd = new Date(); yEnd.setDate(yEnd.getDate() - 1); yEnd.setHours(23,59,59,999)
+      return { startDate: toDateOnly(yStart), endDate: toDateOnly(yEnd) }
+    }
+    if (rangePreset === "week") {
+      const s = new Date(); s.setDate(s.getDate() - 6); s.setHours(0,0,0,0)
+      return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+    }
+    if (rangePreset === "month") {
+      const s = new Date(); s.setDate(s.getDate() - 29); s.setHours(0,0,0,0)
+      return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+    }
+    const days = Number.isFinite(customDays) && customDays > 0 ? customDays : 30
+    const s = new Date(); s.setDate(s.getDate() - (days - 1)); s.setHours(0,0,0,0)
+    return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+  }, [rangePreset, customDays])
 
   const { data: vendorPaymentsData, isLoading: vendorPaymentsLoading } = useQuery({
     queryKey: ["vendor-payments", { page, customerId: customerFilter, limit, startDate, endDate }],
@@ -41,6 +66,12 @@ export function VendorPaymentsTable() {
     queryFn: () => vendorsApi.getAll({ limit: 100 }),
   })
 
+  // Fetch full list (capped) for summary aggregation
+  const { data: vendorPaymentsAllForSummary } = useQuery({
+    queryKey: ["vendor-payments-all-for-summary", { customerId: customerFilter, startDate, endDate }],
+    queryFn: () => vendorPaymentsApi.getAll({ page: 1, limit: 1000, customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
+  })
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -56,17 +87,17 @@ export function VendorPaymentsTable() {
   }
 
   const getCustomerName = (customerId: string) => {
-    const customer = customersData?.customers?.find(c => c.id === customerId)
+    const customer = customersData?.customers?.find((c: any) => c.id === customerId)
     return customer?.name || "Unknown Customer"
   }
 
   const getVendorName = (vendorId: string) => {
-    const vendor = vendorsData?.vendors?.find(v => v.id === vendorId)
+    const vendor = vendorsData?.vendors?.find((v: any) => v.id === vendorId)
     return vendor?.name || "Unknown Vendor"
   }
 
   // Filter vendor payments locally based on search
-  const filteredVendorPayments = vendorPaymentsData?.vendorPayments?.filter(payment => 
+  const filteredVendorPayments = vendorPaymentsData?.vendorPayments?.filter((payment: any) => 
     getCustomerName(payment.customerId).toLowerCase().includes(search.toLowerCase()) ||
     getVendorName(payment.vendorId).toLowerCase().includes(search.toLowerCase())
   ) || []
@@ -94,8 +125,31 @@ export function VendorPaymentsTable() {
               className="pl-10"
             />
           </div>
-          <Input type="date" value={startDate || ''} onChange={(e) => setStartDate(e.target.value || undefined)} className="w-full sm:w-44" />
-          <Input type="date" value={endDate || ''} onChange={(e) => setEndDate(e.target.value || undefined)} className="w-full sm:w-44" />
+          <Select value={rangePreset} onValueChange={(v) => setRangePreset(v as any)}>
+            <SelectTrigger className="w-full sm:w-44">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="week">Last 7 days</SelectItem>
+              <SelectItem value="month">Last 30 days</SelectItem>
+              <SelectItem value="custom">Custom N days</SelectItem>
+            </SelectContent>
+          </Select>
+          {rangePreset === "custom" && (
+            <div className="flex items-center gap-2 w-full sm:w-44">
+              <Input
+                type="number"
+                min={1}
+                value={customDays}
+                onChange={(e) => setCustomDays(parseInt(e.target.value || '0'))}
+                className="w-full"
+                placeholder="Days"
+              />
+            </div>
+          )}
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
             <SelectTrigger className="w-full sm:w-48">
               <Filter className="mr-2 h-4 w-4" />
@@ -103,7 +157,7 @@ export function VendorPaymentsTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All customers</SelectItem>
-              {customersData?.customers?.map((customer) => (
+              {customersData?.customers?.map((customer: any) => (
                 <SelectItem key={customer.id} value={customer.id}>
                   {customer.name}
                 </SelectItem>
@@ -174,7 +228,7 @@ export function VendorPaymentsTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredVendorPayments.map((payment) => (
+              filteredVendorPayments.map((payment: any) => (
                 <TableRow key={payment.id}>
                   <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{getVendorName(payment.vendorId)}</TableCell>
@@ -223,7 +277,7 @@ export function VendorPaymentsTable() {
             </CardContent>
           </Card>
         ) : (
-          filteredVendorPayments.map((payment) => (
+          filteredVendorPayments.map((payment: any) => (
             <Card key={payment.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -291,6 +345,41 @@ export function VendorPaymentsTable() {
             >
               <ChevronsRight className="h-4 w-4" />
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Per-customer Summary (bottom) */}
+      {vendorPaymentsAllForSummary?.vendorPayments && vendorPaymentsAllForSummary.vendorPayments.length > 0 && (
+        <div className="rounded-md border p-4 space-y-3">
+          <div className="text-sm text-muted-foreground">Per-customer totals for selected range</div>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-right">USD</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(Object.entries(
+                  vendorPaymentsAllForSummary.vendorPayments.reduce((acc: Record<string, { usd: number }>, p: any) => {
+                    const key = p.customerId
+                    acc[key] = acc[key] || { usd: 0 }
+                    acc[key].usd += p.amountUSD || 0
+                    return acc
+                  }, {}) as Record<string, { usd: number }>
+                ) as Array<[string, { usd: number }]>).map(([customerId, totals]) => (
+                  <TableRow key={customerId}>
+                    <TableCell className="font-medium">{getCustomerName(customerId)}</TableCell>
+                    <TableCell className="text-right">${totals.usd.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="text-right text-sm font-medium">
+            Total USD: ${vendorPaymentsAllForSummary.vendorPayments.reduce((a: number, p: any) => a + (p.amountUSD || 0), 0).toLocaleString()}
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,9 +17,38 @@ export function PaymentsTable() {
   const [search, setSearch] = useState("")
   const [customerFilter, setCustomerFilter] = useState("all")
   const [page, setPage] = useState(1)
-  const [startDate, setStartDate] = useState<string | undefined>(undefined)
-  const [endDate, setEndDate] = useState<string | undefined>(undefined)
+  const [rangePreset, setRangePreset] = useState<"today" | "yesterday" | "week" | "month" | "custom">("today")
+  const [customDays, setCustomDays] = useState<number>(30)
   const [limit] = useState(10)
+
+  const { startDate, endDate } = useMemo(() => {
+    const toDateOnly = (d: Date) => d.toISOString().slice(0,10)
+    const start = new Date()
+    const end = new Date()
+    // normalize end to today 23:59:59 for API
+    end.setHours(23,59,59,999)
+
+    if (rangePreset === "today") {
+      const s = new Date(); s.setHours(0,0,0,0)
+      return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+    }
+    if (rangePreset === "yesterday") {
+      const yStart = new Date(); yStart.setDate(yStart.getDate() - 1); yStart.setHours(0,0,0,0)
+      const yEnd = new Date(); yEnd.setDate(yEnd.getDate() - 1); yEnd.setHours(23,59,59,999)
+      return { startDate: toDateOnly(yStart), endDate: toDateOnly(yEnd) }
+    }
+    if (rangePreset === "week") {
+      const s = new Date(); s.setDate(s.getDate() - 6); s.setHours(0,0,0,0)
+      return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+    }
+    if (rangePreset === "month") {
+      const s = new Date(); s.setDate(s.getDate() - 29); s.setHours(0,0,0,0)
+      return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+    }
+    const days = Number.isFinite(customDays) && customDays > 0 ? customDays : 30
+    const s = new Date(); s.setDate(s.getDate() - (days - 1)); s.setHours(0,0,0,0)
+    return { startDate: toDateOnly(s), endDate: toDateOnly(end) }
+  }, [rangePreset, customDays])
 
   const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
     queryKey: ["payments", { page, customerId: customerFilter, limit, startDate, endDate }],
@@ -34,6 +63,12 @@ export function PaymentsTable() {
   const { data: customersData } = useQuery({
     queryKey: ["customers-for-payments"],
     queryFn: () => customersApi.getAll({ limit: 100 }),
+  })
+
+  // Fetch full list (capped) for summary aggregation
+  const { data: paymentsAllForSummary } = useQuery({
+    queryKey: ["payments-all-for-summary", { customerId: customerFilter, startDate, endDate }],
+    queryFn: () => paymentsApi.getAll({ page: 1, limit: 1000, customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
   const formatDate = (dateString: string) => {
@@ -54,12 +89,12 @@ export function PaymentsTable() {
   }
 
   const getCustomerName = (customerId: string) => {
-    const customer = customersData?.customers?.find(c => c.id === customerId)
+    const customer = customersData?.customers?.find((c: any) => c.id === customerId)
     return customer?.name || "Unknown Customer"
   }
 
   // Filter payments locally based on search
-  const filteredPayments = paymentsData?.payments?.filter(payment => 
+  const filteredPayments = paymentsData?.payments?.filter((payment: any) => 
     getCustomerName(payment.customerId).toLowerCase().includes(search.toLowerCase())
   ) || []
 
@@ -87,8 +122,31 @@ export function PaymentsTable() {
               className="pl-10"
             />
           </div>
-          <Input type="date" value={startDate || ''} onChange={(e) => setStartDate(e.target.value || undefined)} className="w-full sm:w-44" />
-          <Input type="date" value={endDate || ''} onChange={(e) => setEndDate(e.target.value || undefined)} className="w-full sm:w-44" />
+          <Select value={rangePreset} onValueChange={(v) => setRangePreset(v as any)}>
+            <SelectTrigger className="w-full sm:w-44">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="week">Last 7 days</SelectItem>
+              <SelectItem value="month">Last 30 days</SelectItem>
+              <SelectItem value="custom">Custom N days</SelectItem>
+            </SelectContent>
+          </Select>
+          {rangePreset === "custom" && (
+            <div className="flex items-center gap-2 w-full sm:w-44">
+              <Input
+                type="number"
+                min={1}
+                value={customDays}
+                onChange={(e) => setCustomDays(parseInt(e.target.value || '0'))}
+                className="w-full"
+                placeholder="Days"
+              />
+            </div>
+          )}
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
             <SelectTrigger className="w-full sm:w-48">
               <Filter className="mr-2 h-4 w-4" />
@@ -96,7 +154,7 @@ export function PaymentsTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All customers</SelectItem>
-              {customersData?.customers?.map((customer) => (
+              {customersData?.customers?.map((customer: any) => (
                 <SelectItem key={customer.id} value={customer.id}>
                   {customer.name}
                 </SelectItem>
@@ -167,7 +225,7 @@ export function PaymentsTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredPayments.map((payment) => (
+              filteredPayments.map((payment: any) => (
                 <TableRow key={payment.id}>
                   <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{formatCurrency(payment.amountNaira, "NGN")}</TableCell>
@@ -208,7 +266,7 @@ export function PaymentsTable() {
             </CardContent>
           </Card>
         ) : (
-          filteredPayments.map((payment) => (
+          filteredPayments.map((payment: any) => (
             <Card key={payment.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -284,6 +342,44 @@ export function PaymentsTable() {
             >
               <ChevronsRight className="h-4 w-4" />
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Per-customer Summary (bottom) */}
+      {paymentsAllForSummary?.payments && paymentsAllForSummary.payments.length > 0 && (
+        <div className="rounded-md border p-4 space-y-3">
+          <div className="text-sm text-muted-foreground">Per-customer totals for selected range</div>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-right">USD</TableHead>
+                  <TableHead className="text-right">NGN</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(Object.entries(
+                  paymentsAllForSummary.payments.reduce((acc: Record<string, { usd: number; ngn: number }>, p: any) => {
+                    const key = p.customerId
+                    acc[key] = acc[key] || { usd: 0, ngn: 0 }
+                    acc[key].usd += p.amountUSD || 0
+                    acc[key].ngn += p.amountNaira || 0
+                    return acc
+                  }, {}) as Record<string, { usd: number; ngn: number }>
+                ) as Array<[string, { usd: number; ngn: number }]>).map(([customerId, totals]) => (
+                  <TableRow key={customerId}>
+                    <TableCell className="font-medium">{getCustomerName(customerId)}</TableCell>
+                    <TableCell className="text-right">${totals.usd.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">₦{totals.ngn.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="text-right text-sm font-medium">
+            Total USD: ${paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountUSD || 0), 0).toLocaleString()} • Total NGN: ₦{paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountNaira || 0), 0).toLocaleString()}
           </div>
         </div>
       )}

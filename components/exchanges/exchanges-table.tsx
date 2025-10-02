@@ -16,6 +16,7 @@ import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 import { Search, Plus, Filter, MoreHorizontal, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import type { CurrencyExchange } from "@/lib/types"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 export function ExchangesTable() {
   const [search, setSearch] = useState("")
@@ -27,6 +28,8 @@ export function ExchangesTable() {
   const { user } = useAuthStore()
   const { showUsd } = useUsdVisibilityStore()
   const AED_RATE = 3.67
+  const [receiptModal, setReceiptModal] = useState<{ open: boolean; exchangeId?: string }>({ open: false })
+  const [receiptAmount, setReceiptAmount] = useState("")
 
   const { data, isLoading } = useQuery({
     queryKey: ["exchanges", { page, status: statusFilter, limit }],
@@ -70,15 +73,23 @@ export function ExchangesTable() {
   }
 
   const handleAddReceipt = (exchange: any) => {
-    const amountStr = window.prompt("Enter received amount in USD:")
-    if (!amountStr) return
-    const amount = parseFloat(amountStr)
+    setReceiptModal({ open: true, exchangeId: exchange.id })
+    setReceiptAmount("")
+  }
+
+  const handleReceiptSubmit = () => {
+    const amount = parseFloat(receiptAmount)
     if (!isFinite(amount) || amount <= 0) {
       toast({ title: "Invalid amount", description: "Please enter a valid positive number.", variant: "destructive" })
       return
     }
-    const dateStr = window.prompt("Enter receipt date (optional, YYYY-MM-DD):") || undefined
-    addReceiptMutation.mutate({ id: exchange.id, amountUSD: amount, transactionDate: dateStr })
+    addReceiptMutation.mutate({
+      id: receiptModal.exchangeId!,
+      amountUSD: amount,
+      transactionDate: new Date().toISOString(),
+    })
+    setReceiptModal({ open: false })
+    setReceiptAmount("")
   }
 
   const formatDate = (dateString: string) => {
@@ -131,7 +142,31 @@ export function ExchangesTable() {
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      <Dialog open={receiptModal.open} onOpenChange={open => setReceiptModal(v => ({ ...v, open }))}>
+        <DialogContent className="max-w-xs p-4">
+          <DialogHeader>
+            <DialogTitle>Add Receipt</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="receipt-amount" className="block text-sm font-medium">Amount (USD)</label>
+            <input
+              id="receipt-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-full border rounded px-2 py-1"
+              value={receiptAmount}
+              onChange={e => setReceiptAmount(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleReceiptSubmit} disabled={addReceiptMutation.isPending || !receiptAmount}>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex flex-col sm:flex-row gap-4 flex-1">
@@ -229,7 +264,7 @@ export function ExchangesTable() {
                   <TableCell>₦{exchange.exchangeRate.toLocaleString()}</TableCell>
                   <TableCell className="font-medium">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
                   <TableCell>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className="text-sm">{showUsd ? `$${(exchange.remainingUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</TableCell>
+                  <TableCell className="text-sm">{showUsd ? `$${(exchange.unclaimedUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</TableCell>
                   <TableCell>{getStatusBadge(exchange.status)}</TableCell>
                   <TableCell>{formatDate(exchange.createdAt)}</TableCell>
                   {canUpdateStatus && (
@@ -341,7 +376,7 @@ export function ExchangesTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Remaining:</span>
-                    <span>{showUsd ? `$${(exchange.remainingUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</span>
+                    <span>{showUsd ? `$${(exchange.unclaimedUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</span>
                   </div>
                   {canUpdateStatus && exchange.status === "PENDING" && (
                     <div className="pt-2">
@@ -401,5 +436,6 @@ export function ExchangesTable() {
         </div>
       )}
     </div>
+    </>
   )
 }

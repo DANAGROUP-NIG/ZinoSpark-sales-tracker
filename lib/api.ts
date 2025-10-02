@@ -12,6 +12,34 @@ export class ApiError extends Error {
   }
 }
 
+function extractErrorMessage(errorData: any, fallback = "An error occurred"): string {
+  if (!errorData) return fallback
+  // Common API error shapes
+  if (typeof errorData === 'string') return errorData
+  if (typeof errorData.message === 'string' && errorData.message.trim()) return errorData.message
+  if (typeof errorData.error === 'string' && errorData.error.trim()) return errorData.error
+  if (errorData.error && typeof errorData.error.message === 'string' && errorData.error.message.trim()) {
+    return errorData.error.message
+  }
+  // NestJS/Express validation errors array
+  if (Array.isArray(errorData.errors) && errorData.errors.length) {
+    const first = errorData.errors[0]
+    if (typeof first === 'string') return first
+    if (first && typeof first.message === 'string' && first.message.trim()) return first.message
+    if (first && first.constraints) {
+      const messages = Object.values(first.constraints as Record<string, string>)
+      if (messages.length) return messages.join('\n')
+    }
+  }
+  // Some libs send { details: [{ message: "..." }] }
+  if (Array.isArray(errorData.details) && errorData.details.length) {
+    const d0 = errorData.details[0]
+    if (typeof d0 === 'string') return d0
+    if (d0 && typeof d0.message === 'string') return d0.message
+  }
+  return fallback
+}
+
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   return fetchWithAuth<T>(endpoint, options)
 }
@@ -19,14 +47,20 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 async function fetchWithAuth<T>(endpoint: string, options?: RequestInit, retryCount = 0): Promise<T> {
   const token = await authService.getValidAccessToken()
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options?.headers,
-    },
-    ...options,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options?.headers,
+      },
+      ...options,
+    })
+  } catch (e: any) {
+    // Network/request failure before a response is available
+    throw new ApiError(0, e?.message || 'Network error, please check your connection')
+  }
 
   // Handle 401 Unauthorized - token might be expired
   if (response.status === 401 && retryCount === 0) {
@@ -58,7 +92,7 @@ async function fetchWithAuth<T>(endpoint: string, options?: RequestInit, retryCo
       }
     }
     
-    throw new ApiError(response.status, errorData.message || "An error occurred")
+    throw new ApiError(response.status, extractErrorMessage(errorData))
   }
 
   return response.json()
@@ -77,7 +111,7 @@ export const authApi = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new ApiError(response.status, errorData.message || "Login failed")
+      throw new ApiError(response.status, extractErrorMessage(errorData, "Login failed"))
     }
 
     const data = await response.json()
@@ -180,6 +214,14 @@ export const paymentsApi = {
           totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
         }
       })
+  },
+  getSummary: (params?: { customerId?: string; startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/payments/summary${qs ? `?${qs}` : ''}`)
   },
   create: (data: { customerId: string; amountNaira: number; exchangeRate: number; transactionDate?: string }) =>
     fetchApi<any>("/payments", {
@@ -316,6 +358,14 @@ export const vendorPaymentsApi = {
           totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
         }
       })
+  },
+  getSummary: (params?: { customerId?: string; startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/vendor-payments/summary${qs ? `?${qs}` : ''}`)
   },
   create: (data: { customerId: string; vendorId: string; amountUSD: number; description?: string; transactionDate?: string }) =>
     fetchApi<any>("/vendor-payments", {

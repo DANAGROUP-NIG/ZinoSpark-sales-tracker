@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast"
 import { vendorsApi } from "@/lib/api"
 import { vendorSchema, type VendorFormData } from "@/lib/validations/vendor"
 import { Loader2 } from "lucide-react"
+import { useAuthStore } from "@/lib/stores/auth-store"
 import type { Vendor } from "@/lib/types"
 
 interface VendorFormProps {
@@ -22,6 +23,7 @@ interface VendorFormProps {
 export function VendorForm({ vendor, onSuccess }: VendorFormProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
 
   const {
     register,
@@ -33,7 +35,7 @@ export function VendorForm({ vendor, onSuccess }: VendorFormProps) {
     resolver: zodResolver(vendorSchema),
     defaultValues: {
       name: vendor?.name || "",
-      type: vendor?.type ?? "EXCHANGE",
+      type: vendor?.type ?? (user?.role === "PARTNER" ? "PAYMENT" : "EXCHANGE"),
       contactInfo: vendor?.contactInfo || "",
     },
   })
@@ -111,12 +113,14 @@ export function VendorForm({ vendor, onSuccess }: VendorFormProps) {
                 <SelectValue placeholder="Select vendor type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="EXCHANGE">
-                  <div>
-                    <div className="font-medium">Exchange</div>
-                    <div className="text-sm text-muted-foreground">For currency conversion</div>
-                  </div>
-                </SelectItem>
+                {user?.role !== "PARTNER" && (
+                  <SelectItem value="EXCHANGE">
+                    <div>
+                      <div className="font-medium">Exchange</div>
+                      <div className="text-sm text-muted-foreground">For currency conversion</div>
+                    </div>
+                  </SelectItem>
+                )}
                 <SelectItem value="PAYMENT">
                   <div>
                     <div className="font-medium">Payment</div>

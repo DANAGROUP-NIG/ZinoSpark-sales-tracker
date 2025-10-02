@@ -15,6 +15,7 @@ import { exchangeSchema, type ExchangeFormData } from "@/lib/validations/exchang
 import { Loader2, Calculator, ArrowLeftRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Calendar } from "@/components/ui/calendar"
+import type { Vendor } from "@/lib/types"
 
 export function ExchangeForm() {
   const router = useRouter()
@@ -92,7 +93,7 @@ export function ExchangeForm() {
     createExchangeMutation.mutate({ vendorId, amountNaira, exchangeRate, transactionDate: isoDate })
   }
 
-  const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
+  const selectedVendor = vendorsData?.vendors?.find((v: Vendor) => v.id === watch("vendorId"))
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -122,7 +123,7 @@ export function ExchangeForm() {
                       ) : vendorsData?.vendors?.length === 0 ? (
                         <div className="p-2 text-sm text-muted-foreground">No exchange vendors available</div>
                       ) : (
-                        vendorsData?.vendors?.map((vendor) => (
+                        vendorsData?.vendors?.map((vendor: Vendor) => (
                           <SelectItem key={vendor.id} value={vendor.id}>
                             {vendor.name}
                           </SelectItem>
@@ -170,7 +171,7 @@ export function ExchangeForm() {
             </div>
 
             {/* Transaction Date Picker */}
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="transactionDate">Transaction Date *</Label>
               <Controller
                 name="transactionDate"
@@ -186,7 +187,7 @@ export function ExchangeForm() {
                 )}
               />
               {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
-            </div>
+            </div> */}
 
             {/* Calculated USD Amount */}
             <Card className="bg-muted/50">

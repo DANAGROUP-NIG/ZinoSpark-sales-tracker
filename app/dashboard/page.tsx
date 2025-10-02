@@ -9,6 +9,7 @@ import { PWAStatus } from "@/components/pwa/pwa-status"
 import { dashboardApi } from "@/lib/api"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { Wallet, Users, Clock, TrendingUp } from "lucide-react"
+import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
@@ -16,6 +17,7 @@ export default function DashboardPage() {
     queryKey: ["dashboard-metrics"],
     queryFn: dashboardApi.getMetrics,
   })
+  const { showUsd } = useUsdVisibilityStore()
 
   return (
     <DashboardLayout allowedRoles={["CLIENT", "PARTNER"]}>
@@ -31,7 +33,11 @@ export default function DashboardPage() {
             <MetricsCard
               title="Total Wallet Balance"
               value={
-                isLoading ? "..." : `$${(metrics?.totalWalletBalance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                isLoading
+                  ? "..."
+                  : showUsd
+                    ? `$${(metrics?.totalWalletBalance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                    : <span className="tracking-widest">*****</span>
               }
               icon={Wallet}
               description="Available USD balance"

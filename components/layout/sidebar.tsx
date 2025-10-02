@@ -33,7 +33,7 @@ const navigation = [
     name: "Vendors",
     href: "/vendors",
     icon: Building2,
-    roles: ["CLIENT"],
+    roles: ["CLIENT", "PARTNER"],
   },
   {
     name: "Exchanges",
