@@ -369,7 +369,7 @@ export const vendorPaymentsApi = {
     const qs = searchParams.toString();
     return fetchApi<any>(`/vendor-payments/summary${qs ? `?${qs}` : ''}`)
   },
-  create: (data: { customerId: string; vendorId: string; amountUSD: number; description?: string; transactionDate?: string }) =>
+  create: (data: { customerId: string; vendorId: string; amountUSD?: number; amountRMB?: number; description?: string; transactionDate?: string }) =>
     fetchApi<any>("/vendor-payments", {
       method: "POST",
       body: JSON.stringify(data),

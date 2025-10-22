@@ -36,7 +36,8 @@ export function VendorPaymentForm() {
     defaultValues: {
       customerId: preselectedCustomerId || "",
       vendorId: "",
-      amountUSD: 0,
+      amountUSD: currentMarket === 'DUBAI' ? 0 : undefined,
+      amountRMB: currentMarket === 'CHINA' ? 0 : undefined,
       description: "",
       transactionDate: new Date().toISOString().slice(0, 10),
     },
@@ -44,6 +45,8 @@ export function VendorPaymentForm() {
 
   const selectedCustomerId = watch("customerId")
   const amountUSD = watch("amountUSD")
+  const amountRMB = watch("amountRMB")
+  const amount = currentMarket === 'DUBAI' ? (amountUSD || 0) : (amountRMB || 0)
 
   // Load customers for dropdown
   const { data: customersData, isLoading: loadingCustomers } = useQuery({
@@ -72,7 +75,7 @@ export function VendorPaymentForm() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
       toast({
         title: "Payment Sent",
-        description: `Successfully sent ${currentMarket === 'DUBAI' ? `$${amountUSD.toFixed(2)} USD` : `¥${amountUSD.toFixed(2)} RMB`} to vendor`,
+        description: `Successfully sent ${currentMarket === 'DUBAI' ? `$${amount.toFixed(2)} USD` : `¥${amount.toFixed(2)} RMB`} to vendor`,
       })
       reset()
       router.push("/vendor-payments")
@@ -97,9 +100,9 @@ export function VendorPaymentForm() {
 
   const selectedCustomer = customersData?.customers?.find((c) => c.id === selectedCustomerId)
   const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
-  const hasInsufficientCustomerBalance = selectedCustomer && amountUSD > (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD : (selectedCustomer.balanceRMB || 0))
-  const hasInsufficientWalletBalance = amountUSD > walletBalance
-  const newBalance = selectedCustomer ? (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD - amountUSD : (selectedCustomer.balanceRMB || 0) - amountUSD) : 0
+  const hasInsufficientCustomerBalance = selectedCustomer && amount > (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD : (selectedCustomer.balanceRMB || 0))
+  const hasInsufficientWalletBalance = amount > walletBalance
+  const newBalance = selectedCustomer ? (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD - amount : (selectedCustomer.balanceRMB || 0) - amount) : 0
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -192,21 +195,32 @@ export function VendorPaymentForm() {
 
             {/* Amount */}
             <div className="space-y-2">
-              <Label htmlFor="amountUSD">Amount ({currentMarket === 'DUBAI' ? 'USD' : 'RMB'}) *</Label>
+              <Label htmlFor={currentMarket === 'DUBAI' ? "amountUSD" : "amountRMB"}>Amount ({currentMarket === 'DUBAI' ? 'USD' : 'RMB'}) *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                   {currentMarket === 'DUBAI' ? '$' : '¥'}
                 </span>
-                <Input
-                  id="amountUSD"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  className={`pl-8 ${errors.amountUSD || hasInsufficientCustomerBalance || hasInsufficientWalletBalance ? "border-destructive" : ""}`}
-                  {...register("amountUSD", { valueAsNumber: true })}
-                />
+                {currentMarket === 'DUBAI' ? (
+                  <Input
+                    id="amountUSD"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    className={`pl-8 ${errors.amountUSD || hasInsufficientCustomerBalance || hasInsufficientWalletBalance ? "border-destructive" : ""}`}
+                    {...register("amountUSD", { valueAsNumber: true })}
+                  />
+                ) : (
+                  <Input
+                    id="amountRMB"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    className={`pl-8 ${errors.amountRMB || hasInsufficientCustomerBalance || hasInsufficientWalletBalance ? "border-destructive" : ""}`}
+                    {...register("amountRMB", { valueAsNumber: true })}
+                  />
+                )}
               </div>
-              {errors.amountUSD && <p className="text-sm text-destructive">{errors.amountUSD.message}</p>}
+              {(errors.amountUSD || errors.amountRMB) && <p className="text-sm text-destructive">{errors.amountUSD?.message || errors.amountRMB?.message}</p>}
               {hasInsufficientCustomerBalance && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
@@ -262,7 +276,7 @@ export function VendorPaymentForm() {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={createPaymentMutation.isPending || hasInsufficientCustomerBalance || hasInsufficientWalletBalance || amountUSD === 0}
+                disabled={createPaymentMutation.isPending || hasInsufficientCustomerBalance || hasInsufficientWalletBalance || amount === 0}
               >
                 {createPaymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Send Payment
@@ -276,7 +290,7 @@ export function VendorPaymentForm() {
       </Card>
 
       {/* Payment Summary */}
-      {selectedCustomer && selectedVendor && amountUSD > 0 && !hasInsufficientCustomerBalance && !hasInsufficientWalletBalance && (
+      {selectedCustomer && selectedVendor && amount > 0 && !hasInsufficientCustomerBalance && !hasInsufficientWalletBalance && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <h3 className="font-medium mb-3 flex items-center gap-2">
@@ -294,7 +308,7 @@ export function VendorPaymentForm() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount:</span>
-                <span className="font-medium">{currentMarket === 'DUBAI' ? `$${amountUSD.toFixed(2)} USD` : `¥${amountUSD.toFixed(2)} RMB`}</span>
+                <span className="font-medium">{currentMarket === 'DUBAI' ? `$${amount.toFixed(2)} USD` : `¥${amount.toFixed(2)} RMB`}</span>
               </div>
               <div className="border-t pt-2 mt-2">
                 <div className="flex justify-between">
