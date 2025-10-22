@@ -95,7 +95,9 @@ export function WalletTransactions() {
                       )}
                     </TableCell>
                     <TableCell>{transaction.description}</TableCell>
-                    <TableCell className={`font-medium ${transaction.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>${transaction.amount.toLocaleString()}</TableCell>
+                    <TableCell className={`font-medium ${transaction.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>
+                      {transaction.currency === 'RMB' ? '¥' : '$'}{transaction.amount.toLocaleString()}
+                    </TableCell>
                     <TableCell>
                       <Badge 
                         variant={transaction.status === "COMPLETED" ? "secondary" : "secondary"}
@@ -124,7 +126,9 @@ export function WalletTransactions() {
                       <p className="font-medium">{transaction.description}</p>
                       <p className="text-sm text-muted-foreground">{new Date(transaction.date).toLocaleDateString()}</p>
                     </div>
-                    <p className={`font-medium ${transaction.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>{transaction.type === 'DEBIT' ? '-' : '+'}${transaction.amount.toLocaleString()}</p>
+                    <p className={`font-medium ${transaction.type === 'DEBIT' ? 'text-red-600' : 'text-green-600'}`}>
+                      {transaction.type === 'DEBIT' ? '-' : '+'}{transaction.currency === 'RMB' ? '¥' : '$'}{transaction.amount.toLocaleString()}
+                    </p>
                   </div>
                   <div className="flex justify-between items-center">
                     <Badge

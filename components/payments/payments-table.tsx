@@ -12,6 +12,7 @@ import { Search, Plus, Filter, ChevronLeft, ChevronRight, ChevronsLeft, Chevrons
 import Link from "next/link"
 import { paymentsApi, customersApi } from "@/lib/api"
 import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export function PaymentsTable() {
   const [search, setSearch] = useState("")
@@ -20,6 +21,10 @@ export function PaymentsTable() {
   const [rangePreset, setRangePreset] = useState<"today" | "yesterday" | "week" | "month" | "custom">("today")
   const [customDays, setCustomDays] = useState<number>(30)
   const [limit] = useState(10)
+
+  const { showUsd } = useUsdVisibilityStore()
+  const { currentMarket } = useMarketStore()
+  const AED_RATE = 3.67
 
   const { startDate, endDate } = useMemo(() => {
     const toDateOnly = (d: Date) => d.toISOString().slice(0,10)
@@ -51,12 +56,12 @@ export function PaymentsTable() {
   }, [rangePreset, customDays])
 
   const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["payments", { page, customerId: customerFilter, limit, startDate, endDate }],
+    queryKey: ["payments", { page, customerId: customerFilter, limit, startDate, endDate, currentMarket }],
     queryFn: () => paymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
   const { data: summary } = useQuery({
-    queryKey: ["payments-summary", { customerId: customerFilter, startDate, endDate }],
+    queryKey: ["payments-summary", { customerId: customerFilter, startDate, endDate, currentMarket }],
     queryFn: () => paymentsApi.getSummary({ customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
@@ -100,9 +105,6 @@ export function PaymentsTable() {
 
   const totalPages = paymentsData?.totalPages || 1
   const totalPayments = paymentsData?.total || 0
-
-  const { showUsd } = useUsdVisibilityStore()
-  const AED_RATE = 3.67
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage)
@@ -175,7 +177,12 @@ export function PaymentsTable() {
         <div className="rounded-md border p-3 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Summary ({summary[0].date} ...)</span>
-            <span className="font-medium">USD: ${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()} • NGN: ₦{summary.reduce((a:number, s:any)=>a+(s.totalAmountNaira||0),0).toLocaleString()}</span>
+            <span className="font-medium">
+              {currentMarket === 'DUBAI'
+                ? `USD: $${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()} • NGN: ₦${summary.reduce((a:number, s:any)=>a+(s.totalAmountNaira||0),0).toLocaleString()}`
+                : `RMB: ¥${summary.reduce((a:number, s:any)=>a+((s.totalAmountNaira||0)/(s.exchangeRate||1)),0).toLocaleString()} • NGN: ₦${summary.reduce((a:number, s:any)=>a+(s.totalAmountNaira||0),0).toLocaleString()}`
+              }
+            </span>
           </div>
         </div>
       )}
@@ -188,8 +195,14 @@ export function PaymentsTable() {
               <TableHead>Customer</TableHead>
               <TableHead>Amount (NGN)</TableHead>
               <TableHead>Exchange Rate</TableHead>
-              <TableHead>Amount (USD)</TableHead>
-              <TableHead>AED</TableHead>
+              {currentMarket === 'DUBAI' ? (
+                <>
+                  <TableHead>Amount (USD)</TableHead>
+                  <TableHead>AED</TableHead>
+                </>
+              ) : (
+                <TableHead>Amount (RMB)</TableHead>
+              )}
               <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -230,8 +243,14 @@ export function PaymentsTable() {
                   <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{formatCurrency(payment.amountNaira, "NGN")}</TableCell>
                   <TableCell>₦{payment.exchangeRate.toLocaleString()}</TableCell>
-                  <TableCell className="font-medium">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
-                  <TableCell>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  {currentMarket === 'DUBAI' ? (
+                    <>
+                      <TableCell className="font-medium">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
+                      <TableCell>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="font-medium">¥{(payment.amountNaira / payment.exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  )}
                   <TableCell>{formatDate(payment.createdAt)}</TableCell>
                   <TableCell>
                     <Badge className="bg-green-100 hover:bg-green-200 text-green-600">
@@ -283,16 +302,27 @@ export function PaymentsTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Rate:</span>
-                    <span>₦{payment.exchangeRate.toLocaleString()}/USD</span>
+                    <span>₦{payment.exchangeRate.toLocaleString()}/{currentMarket === 'DUBAI' ? 'USD' : 'RMB'}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">USD:</span>
-                    <span className="font-bold text-purple-600">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">AED:</span>
-                    <span>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
+                  {currentMarket === 'DUBAI' ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">USD:</span>
+                        <span className="font-bold text-purple-600">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">AED:</span>
+                        <span>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">RMB:</span>
+                        <span className="font-bold text-purple-600">¥{(payment.amountNaira / payment.exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -355,23 +385,24 @@ export function PaymentsTable() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">USD</TableHead>
+                  <TableHead className="text-right">{currentMarket === 'DUBAI' ? 'USD' : 'RMB'}</TableHead>
                   <TableHead className="text-right">NGN</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(Object.entries(
-                  paymentsAllForSummary.payments.reduce((acc: Record<string, { usd: number; ngn: number }>, p: any) => {
+                  paymentsAllForSummary.payments.reduce((acc: Record<string, { primary: number; ngn: number }>, p: any) => {
                     const key = p.customerId
-                    acc[key] = acc[key] || { usd: 0, ngn: 0 }
-                    acc[key].usd += p.amountUSD || 0
+                    acc[key] = acc[key] || { primary: 0, ngn: 0 }
+                    // For Dubai, primary = USD; For China, primary = RMB (derived)
+                    acc[key].primary += currentMarket === 'DUBAI' ? (p.amountUSD || 0) : ((p.amountNaira || 0) / (p.exchangeRate || 1))
                     acc[key].ngn += p.amountNaira || 0
                     return acc
-                  }, {}) as Record<string, { usd: number; ngn: number }>
-                ) as Array<[string, { usd: number; ngn: number }]>).map(([customerId, totals]) => (
+                  }, {}) as Record<string, { primary: number; ngn: number }>
+                ) as Array<[string, { primary: number; ngn: number }]>).map(([customerId, totals]) => (
                   <TableRow key={customerId}>
                     <TableCell className="font-medium">{getCustomerName(customerId)}</TableCell>
-                    <TableCell className="text-right">${totals.usd.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{currentMarket === 'DUBAI' ? `$${totals.primary.toLocaleString()}` : `¥${totals.primary.toLocaleString()}`}</TableCell>
                     <TableCell className="text-right">₦{totals.ngn.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}
@@ -379,7 +410,10 @@ export function PaymentsTable() {
             </Table>
           </div>
           <div className="text-right text-sm font-medium">
-            Total USD: ${paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountUSD || 0), 0).toLocaleString()} • Total NGN: ₦{paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountNaira || 0), 0).toLocaleString()}
+            {currentMarket === 'DUBAI'
+              ? `Total USD: $${paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountUSD || 0), 0).toLocaleString()} • Total NGN: ₦${paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountNaira || 0), 0).toLocaleString()}`
+              : `Total RMB: ¥${paymentsAllForSummary.payments.reduce((a: number, p: any) => a + ((p.amountNaira || 0) / (p.exchangeRate || 1)), 0).toLocaleString()} • Total NGN: ₦${paymentsAllForSummary.payments.reduce((a: number, p: any) => a + (p.amountNaira || 0), 0).toLocaleString()}`
+            }
           </div>
         </div>
       )}

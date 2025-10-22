@@ -41,10 +41,13 @@ export interface CurrencyExchange {
   amountNaira: number
   exchangeRate: number
   amountUSD: number
+  amountRMB?: number
   status: "PENDING" | "RECEIVED" | "CANCELLED"
   createdAt: string
   updatedAt: string
   vendor: Vendor
+  unclaimedUSD?: number
+  unclaimedRMB?: number
 }
 
 export interface VendorPayment {
@@ -52,6 +55,11 @@ export interface VendorPayment {
   customerId: string
   vendorId: string
   amountUSD: number
+  amountRMB?: number
+  balanceBeforeUSD?: number
+  balanceAfterUSD?: number
+  balanceBeforeRMB?: number
+  balanceAfterRMB?: number
   description?: string
   createdAt: string
   updatedAt: string

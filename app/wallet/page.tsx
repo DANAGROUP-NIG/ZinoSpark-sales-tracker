@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api } from "@/lib/api"
 import { Loader2, RefreshCw } from "lucide-react"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export default function WalletPage() {
   const [refreshKey, setRefreshKey] = useState(0)
+  const { currentMarket } = useMarketStore()
 
   const {
     data: walletData,
@@ -19,7 +21,7 @@ export default function WalletPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["wallet", refreshKey],
+    queryKey: ["wallet", currentMarket, refreshKey],
     queryFn: api.getWalletData,
   })
 
@@ -66,7 +68,7 @@ export default function WalletPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Wallet</h1>
-            <p className="text-muted-foreground">Manage your USD wallet and transaction history</p>
+            <p className="text-muted-foreground">Manage your {currentMarket === 'DUBAI' ? 'USD' : 'RMB'} wallet and transaction history</p>
           </div>
           <Tabs defaultValue="refresh" className="inline-flex">
             <TabsList className="bg-transparent p-0 h-auto">
@@ -103,6 +105,10 @@ export default function WalletPage() {
               balance={walletData?.balance || 0}
               totalCustomerBalanceUSD={walletData?.customerBalanceUSD || 0}
               pendingExchangesUSD={walletData?.pendingExchangesUSD || 0}
+              totalRMB={walletData?.totalRMB}
+              totalCustomerBalanceRMB={walletData?.totalCustomerBalanceRMB}
+              availableCustomerBalanceRMB={walletData?.availableCustomerBalanceRMB}
+              pendingExchangesRMB={walletData?.pendingExchangesRMB}
             />
           </TabsContent>
 

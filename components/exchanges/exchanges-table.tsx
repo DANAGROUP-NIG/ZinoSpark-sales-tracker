@@ -17,6 +17,7 @@ import { Search, Plus, Filter, MoreHorizontal, CheckCircle, XCircle, Clock, Chev
 import Link from "next/link"
 import type { CurrencyExchange } from "@/lib/types"
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export function ExchangesTable() {
   const [search, setSearch] = useState("")
@@ -28,11 +29,12 @@ export function ExchangesTable() {
   const { user } = useAuthStore()
   const { showUsd } = useUsdVisibilityStore()
   const AED_RATE = 3.67
+  const { currentMarket } = useMarketStore()
   const [receiptModal, setReceiptModal] = useState<{ open: boolean; exchangeId?: string }>({ open: false })
   const [receiptAmount, setReceiptAmount] = useState("")
 
   const { data, isLoading } = useQuery({
-    queryKey: ["exchanges", { page, status: statusFilter, limit }],
+    queryKey: ["exchanges", { page, status: statusFilter, limit, currentMarket }],
     queryFn: () => exchangesApi.getAll({ page, limit, status: statusFilter === "all" ? undefined : statusFilter }),
   })
 
@@ -149,7 +151,7 @@ export function ExchangesTable() {
             <DialogTitle>Add Receipt</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <label htmlFor="receipt-amount" className="block text-sm font-medium">Amount (USD)</label>
+            <label htmlFor="receipt-amount" className="block text-sm font-medium">Amount ({currentMarket === 'DUBAI' ? 'USD' : 'RMB'})</label>
             <input
               id="receipt-amount"
               type="number"
@@ -210,8 +212,14 @@ export function ExchangesTable() {
               <TableHead>Vendor</TableHead>
               <TableHead>Amount (NGN)</TableHead>
               <TableHead>Exchange Rate</TableHead>
-              <TableHead>Amount (USD)</TableHead>
-              <TableHead>AED</TableHead>
+              {currentMarket === 'DUBAI' ? (
+                <>
+                  <TableHead>Amount (USD)</TableHead>
+                  <TableHead>AED</TableHead>
+                </>
+              ) : (
+                <TableHead>Amount (RMB)</TableHead>
+              )}
               <TableHead>Remaining</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date</TableHead>
@@ -262,9 +270,15 @@ export function ExchangesTable() {
                   <TableCell className="font-medium">{exchange.vendor?.name || "Unknown Vendor"}</TableCell>
                   <TableCell>{formatCurrency(exchange.amountNaira, "NGN")}</TableCell>
                   <TableCell>₦{exchange.exchangeRate.toLocaleString()}</TableCell>
-                  <TableCell className="font-medium">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
-                  <TableCell>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                  <TableCell className="text-sm">{showUsd ? `$${(exchange.unclaimedUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</TableCell>
+                  {currentMarket === 'DUBAI' ? (
+                    <>
+                      <TableCell className="font-medium">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
+                      <TableCell>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="font-medium">¥{((exchange.amountRMB ?? (exchange.amountNaira / exchange.exchangeRate)) as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  )}
+                  <TableCell className="text-sm">{currentMarket === 'DUBAI' ? (showUsd ? `$${(exchange.unclaimedUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****') : `¥${((exchange.unclaimedRMB ?? 0) as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}</TableCell>
                   <TableCell>{getStatusBadge(exchange.status)}</TableCell>
                   <TableCell>{formatDate(exchange.createdAt)}</TableCell>
                   {canUpdateStatus && (
@@ -364,20 +378,35 @@ export function ExchangesTable() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Rate:</span>
-                    <span>₦{exchange.exchangeRate.toLocaleString()}/USD</span>
+                    <span>₦{exchange.exchangeRate.toLocaleString()}/{currentMarket === 'DUBAI' ? 'USD' : 'RMB'}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">USD:</span>
-                    <span className="font-bold text-purple-600">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">AED:</span>
-                    <span>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Remaining:</span>
-                    <span>{showUsd ? `$${(exchange.unclaimedUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</span>
-                  </div>
+                  {currentMarket === 'DUBAI' ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">USD:</span>
+                        <span className="font-bold text-purple-600">{showUsd ? formatCurrency(exchange.amountUSD) : <span className="tracking-widest">*****</span>}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">AED:</span>
+                        <span>AED {(exchange.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Remaining:</span>
+                        <span>{showUsd ? `$${(exchange.unclaimedUSD ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '*****'}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">RMB:</span>
+                        <span className="font-bold text-purple-600">¥{((exchange.amountRMB ?? (exchange.amountNaira / exchange.exchangeRate)) as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Remaining:</span>
+                        <span>¥{((exchange.unclaimedRMB ?? 0) as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  )}
                   {canUpdateStatus && exchange.status === "PENDING" && (
                     <div className="pt-2">
                       <Button variant="outline" size="sm" onClick={() => handleAddReceipt(exchange)}>Add Receipt</Button>

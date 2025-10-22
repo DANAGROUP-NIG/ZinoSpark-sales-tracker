@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Activity, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react"
 import { dashboardApi } from "@/lib/api"
 import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 function getActivityIcon(type: string) {
   switch (type) {
@@ -39,8 +40,9 @@ function getStatusBadge(status: string) {
 
 export function RecentActivity() {
   const { showUsd } = useUsdVisibilityStore()
+  const { currentMarket } = useMarketStore()
   const { data: activities, isLoading } = useQuery({
-    queryKey: ["recent-activity"],
+    queryKey: ["recent-activity", currentMarket],
     queryFn: dashboardApi.getRecentActivity,
   })
 
@@ -86,6 +88,8 @@ export function RecentActivity() {
                 <div className="text-sm font-medium">
                   {activity.currency === "USD"
                     ? (showUsd ? `$${activity.amount.toLocaleString()}` : <span className="tracking-widest">*****</span>)
+                    : activity.currency === "RMB"
+                    ? `¥${activity.amount.toLocaleString()}`
                     : `₦${activity.amount.toLocaleString()}`}
                 </div>
               </div>

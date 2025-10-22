@@ -13,11 +13,13 @@ import { customersApi } from "@/lib/api"
 import { CustomerModal } from "./customer-modal"
 import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 import { Search, MoreHorizontal, Edit, Trash2, Eye, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
+import { useMarketStore } from "@/lib/stores/market-store"
 import Link from "next/link"
 import type { Customer } from "@/lib/types"
 
 export function CustomersTable() {
   const { showUsd } = useUsdVisibilityStore()
+  const { currentMarket } = useMarketStore()
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
@@ -118,7 +120,7 @@ export function CustomersTable() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Balance (USD)</TableHead>
+              <TableHead>Balance</TableHead>
               <TableHead>Last Updated</TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
@@ -160,9 +162,15 @@ export function CustomersTable() {
                   <TableCell>{customer.email || "-"}</TableCell>
                   <TableCell>{customer.phone || "-"}</TableCell>
                   <TableCell>
-                    <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"}>
-                      {showUsd ? formatCurrency(customer.balanceUSD) : <span className="tracking-widest">*****</span>}
-                    </Badge>
+                    {currentMarket === 'DUBAI' ? (
+                      <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"}>
+                        {showUsd ? `$${customer.balanceUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : <span className="tracking-widest">*****</span>}
+                      </Badge>
+                    ) : (
+                      <Badge variant={(customer.balanceRMB || 0) > 0 ? "default" : "secondary"}>
+                        ¥{(customer.balanceRMB || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>{formatDate(customer.updatedAt)}</TableCell>
                   <TableCell>
@@ -252,11 +260,19 @@ export function CustomersTable() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <div className="flex justify-between items-center">
-                  <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"}>
-                    {showUsd ? formatCurrency(customer.balanceUSD) : <span className="tracking-widest">*****</span>}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">Updated {formatDate(customer.updatedAt)}</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    {currentMarket === 'DUBAI' ? (
+                      <Badge variant={customer.balanceUSD > 0 ? "default" : "secondary"} className="text-xs">
+                        {showUsd ? `$${customer.balanceUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : <span className="tracking-widest">*****</span>}
+                      </Badge>
+                    ) : (
+                      <Badge variant={(customer.balanceRMB || 0) > 0 ? "default" : "secondary"} className="text-xs">
+                        ¥{(customer.balanceRMB || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">Updated {formatDate(customer.updatedAt)}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>

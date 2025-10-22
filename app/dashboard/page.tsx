@@ -10,11 +10,13 @@ import { dashboardApi } from "@/lib/api"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { Wallet, Users, Clock, TrendingUp } from "lucide-react"
 import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const { currentMarket } = useMarketStore()
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["dashboard-metrics"],
+    queryKey: ["dashboard-metrics", currentMarket],
     queryFn: dashboardApi.getMetrics,
   })
   const { showUsd } = useUsdVisibilityStore()
@@ -35,12 +37,14 @@ export default function DashboardPage() {
               value={
                 isLoading
                   ? "..."
-                  : showUsd
-                    ? `$${(metrics?.totalWalletBalance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-                    : <span className="tracking-widest">*****</span>
+                  : currentMarket === 'DUBAI'
+                    ? (showUsd
+                        ? `$${(metrics?.totalWalletBalance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+                        : <span className="tracking-widest">*****</span>)
+                    : `¥${(metrics?.totalWalletBalance ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
               }
               icon={Wallet}
-              description="Available USD balance"
+              description={currentMarket === 'DUBAI' ? "Available USD balance" : "Available RMB balance"}
             />
           )}
           <MetricsCard

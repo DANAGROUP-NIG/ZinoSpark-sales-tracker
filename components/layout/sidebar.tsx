@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { useSidebarStore } from "@/lib/stores/sidebar-store"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Users, CreditCard, Building2, ArrowLeftRight, Wallet, Menu, LogOut, ChevronLeft, ChevronRight } from "lucide-react"
+import { LayoutDashboard, Users, CreditCard, Building2, ArrowLeftRight, Wallet, Menu, LogOut, ChevronLeft, ChevronRight, FileText } from "lucide-react"
 
 const navigation = [
   {
@@ -45,6 +45,12 @@ const navigation = [
     name: "Vendor Payments",
     href: "/vendor-payments",
     icon: CreditCard,
+    roles: ["CLIENT", "PARTNER"],
+  },
+  {
+    name: "Payment Orders",
+    href: "/payment-orders",
+    icon: FileText,
     roles: ["CLIENT", "PARTNER"],
   },
   {

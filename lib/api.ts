@@ -1,4 +1,5 @@
 import { authService } from './auth'
+import { getCurrentMarket } from './stores/market-store'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001/api"
 
@@ -53,6 +54,7 @@ async function fetchWithAuth<T>(endpoint: string, options?: RequestInit, retryCo
       headers: {
         "Content-Type": "application/json",
         ...(token && { Authorization: `Bearer ${token}` }),
+        'X-Market': getCurrentMarket(),
         ...options?.headers,
       },
       ...options,
@@ -374,11 +376,81 @@ export const vendorPaymentsApi = {
     }),
 }
 
+// Payment Orders API
+export const paymentOrdersApi = {
+  getAll: (params?: { page?: number; limit?: number; customerId?: string; vendorId?: string; status?: string; market?: string; startDate?: string; endDate?: string; search?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.vendorId) searchParams.append('vendorId', params.vendorId);
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.market) searchParams.append('market', params.market);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    if (params?.search) searchParams.append('search', params.search);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/payment-orders${qs ? `?${qs}` : ''}`)
+      .then((res) => {
+        const data = res?.data ?? res
+        const pagination = res?.pagination ?? {}
+        return {
+          paymentOrders: data ?? [],
+          total: pagination.total ?? res?.total ?? 0,
+          page: pagination.page ?? res?.page ?? params?.page ?? 1,
+          totalPages: pagination.totalPages ?? res?.totalPages ?? 1,
+        }
+      })
+  },
+  getSummary: (params?: { customerId?: string; vendorId?: string; status?: string; market?: string; startDate?: string; endDate?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+    if (params?.vendorId) searchParams.append('vendorId', params.vendorId);
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.market) searchParams.append('market', params.market);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    const qs = searchParams.toString();
+    return fetchApi<any>(`/payment-orders/summary${qs ? `?${qs}` : ''}`)
+  },
+  getById: async (id: string) => {
+    const res = await fetchApi<any>(`/payment-orders/${id}`)
+    return res?.data ?? res
+  },
+  create: (data: { customerId: string; vendorId: string; amountUSD: number; amountRMB?: number; description?: string; notes?: string; market?: string }) =>
+    fetchApi<any>("/payment-orders", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { status?: string; notes?: string }) =>
+    fetchApi<any>(`/payment-orders/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+}
+
 // Wallet API
 export const walletApi = {
   getData: async () => {
     const res = await fetchApi<any>("/wallet")
     const data = res?.data ?? res
+    const market = getCurrentMarket()
+
+    if (market === 'CHINA') {
+      return {
+        balance: data?.totalRMB ?? 0,
+        totalRMB: data?.totalRMB ?? 0,
+        totalCustomerBalanceRMB: data?.totalCustomerBalanceRMB ?? 0,
+        availableCustomerBalanceRMB: data?.availableCustomerBalanceRMB ?? 0,
+        pendingExchangesRMB: data?.pendingExchangesRMB ?? 0,
+        // Keep USD fields undefined to avoid accidental USD rendering
+        totalCustomerBalanceUSD: undefined,
+        customerBalanceUSD: undefined,
+        pendingExchangesUSD: undefined,
+        updatedAt: data?.updatedAt,
+      }
+    }
+
     return {
       balance: data?.totalUSD ?? 0,
       customerBalanceUSD: data?.availableCustomerBalanceUSD ?? data?.totalCustomerBalanceUSD ?? 0,
@@ -395,6 +467,7 @@ export const walletApi = {
     const res = await fetchApi<any>(`/wallet/history${qs ? `?${qs}` : ''}`)
     const list = res?.data ?? []
     const pagination = res?.pagination ?? {}
+    const market = getCurrentMarket()
     const transactions = list.map((item: any) => ({
       id: item.id,
       type: item.type, // CREDIT | DEBIT
@@ -402,6 +475,7 @@ export const walletApi = {
       date: item.createdAt,
       description: item.description,
       status: 'COMPLETED' as const,
+      currency: market === 'CHINA' ? 'RMB' : 'USD',
     }))
     return {
       transactions,
@@ -448,6 +522,13 @@ export const api = {
   // Vendor Payments
   getVendorPayments: vendorPaymentsApi.getAll,
   createVendorPayment: vendorPaymentsApi.create,
+
+  // Payment Orders
+  getPaymentOrders: paymentOrdersApi.getAll,
+  getPaymentOrder: paymentOrdersApi.getById,
+  createPaymentOrder: paymentOrdersApi.create,
+  updatePaymentOrder: paymentOrdersApi.update,
+  getPaymentOrdersSummary: paymentOrdersApi.getSummary,
 
   // Wallet
   getWalletData: walletApi.getData,

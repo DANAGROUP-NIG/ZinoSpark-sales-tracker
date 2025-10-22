@@ -14,7 +14,7 @@ import { customersApi, vendorsApi, vendorPaymentsApi, walletApi } from "@/lib/ap
 import { vendorPaymentSchema, type VendorPaymentFormData } from "@/lib/validations/vendor-payment"
 import { Loader2, Send, AlertTriangle, Wallet } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Calendar } from "@/components/ui/calendar"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export function VendorPaymentForm() {
   const router = useRouter()
@@ -22,6 +22,7 @@ export function VendorPaymentForm() {
   const preselectedCustomerId = searchParams.get("customerId")
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { currentMarket } = useMarketStore()
 
   const {
     register,
@@ -71,7 +72,7 @@ export function VendorPaymentForm() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
       toast({
         title: "Payment Sent",
-        description: `Successfully sent $${amountUSD.toFixed(2)} USD to vendor`,
+        description: `Successfully sent ${currentMarket === 'DUBAI' ? `$${amountUSD.toFixed(2)} USD` : `¥${amountUSD.toFixed(2)} RMB`} to vendor`,
       })
       reset()
       router.push("/vendor-payments")
@@ -96,9 +97,9 @@ export function VendorPaymentForm() {
 
   const selectedCustomer = customersData?.customers?.find((c) => c.id === selectedCustomerId)
   const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
-  const hasInsufficientCustomerBalance = selectedCustomer && amountUSD > selectedCustomer.balanceUSD
+  const hasInsufficientCustomerBalance = selectedCustomer && amountUSD > (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD : (selectedCustomer.balanceRMB || 0))
   const hasInsufficientWalletBalance = amountUSD > walletBalance
-  const newBalance = selectedCustomer ? selectedCustomer.balanceUSD - amountUSD : 0
+  const newBalance = selectedCustomer ? (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD - amountUSD : (selectedCustomer.balanceRMB || 0) - amountUSD) : 0
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -137,7 +138,7 @@ export function VendorPaymentForm() {
                             <div className="flex justify-between items-center w-full">
                               <span>{customer.name}</span>
                               <span className="text-sm text-muted-foreground ml-2">
-                                ${customer.balanceUSD.toFixed(2)}
+                                {currentMarket === 'DUBAI' ? `USD: $${customer.balanceUSD.toFixed(2)}` : `RMB: ¥${(customer.balanceRMB || 0).toFixed(2)}`}
                               </span>
                             </div>
                           </SelectItem>
@@ -150,7 +151,7 @@ export function VendorPaymentForm() {
               {errors.customerId && <p className="text-sm text-destructive">{errors.customerId.message}</p>}
               {selectedCustomer && (
                 <p className="text-sm text-muted-foreground">
-                  Available balance: ${selectedCustomer.balanceUSD.toFixed(2)} USD
+                  Available balance: {currentMarket === 'DUBAI' ? `USD $${selectedCustomer.balanceUSD.toFixed(2)}` : `RMB ¥${(selectedCustomer.balanceRMB || 0).toFixed(2)}`}
                 </p>
               )}
             </div>
@@ -189,11 +190,13 @@ export function VendorPaymentForm() {
               {errors.vendorId && <p className="text-sm text-destructive">{errors.vendorId.message}</p>}
             </div>
 
-            {/* Amount in USD */}
+            {/* Amount */}
             <div className="space-y-2">
-              <Label htmlFor="amountUSD">Amount (USD) *</Label>
+              <Label htmlFor="amountUSD">Amount ({currentMarket === 'DUBAI' ? 'USD' : 'RMB'}) *</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                  {currentMarket === 'DUBAI' ? '$' : '¥'}
+                </span>
                 <Input
                   id="amountUSD"
                   type="number"
@@ -208,7 +211,7 @@ export function VendorPaymentForm() {
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    Insufficient customer balance. Customer has ${selectedCustomer.balanceUSD.toFixed(2)} USD available.
+                    Insufficient customer balance. Customer has {currentMarket === 'DUBAI' ? `$${selectedCustomer.balanceUSD.toFixed(2)} USD` : `¥${(selectedCustomer.balanceRMB || 0).toFixed(2)} RMB`} available.
                   </AlertDescription>
                 </Alert>
               )}
@@ -216,7 +219,7 @@ export function VendorPaymentForm() {
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    Insufficient wallet balance. Wallet has ${walletBalance.toFixed(2)} USD available.
+                    Insufficient wallet balance. Wallet has {currentMarket === 'DUBAI' ? `$${walletBalance.toFixed(2)} USD` : `¥${walletBalance.toFixed(2)} RMB`} available.
                   </AlertDescription>
                 </Alert>
               )}
@@ -291,16 +294,16 @@ export function VendorPaymentForm() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount:</span>
-                <span className="font-medium">${amountUSD.toFixed(2)} USD</span>
+                <span className="font-medium">{currentMarket === 'DUBAI' ? `$${amountUSD.toFixed(2)} USD` : `¥${amountUSD.toFixed(2)} RMB`}</span>
               </div>
               <div className="border-t pt-2 mt-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Current Balance:</span>
-                  <span>${selectedCustomer.balanceUSD.toFixed(2)}</span>
+                  <span>{currentMarket === 'DUBAI' ? `$${selectedCustomer.balanceUSD.toFixed(2)}` : `¥${(selectedCustomer.balanceRMB || 0).toFixed(2)}`}</span>
                 </div>
                 <div className="flex justify-between font-medium">
                   <span>New Balance:</span>
-                  <span className="text-primary">${newBalance.toFixed(2)}</span>
+                  <span className="text-primary">{currentMarket === 'DUBAI' ? `$${newBalance.toFixed(2)}` : `¥${newBalance.toFixed(2)}`}</span>
                 </div>
               </div>
             </div>

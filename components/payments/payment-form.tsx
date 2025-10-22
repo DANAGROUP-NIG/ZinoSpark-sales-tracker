@@ -15,6 +15,7 @@ import { paymentSchema, type PaymentFormData } from "@/lib/validations/payment"
 import { Loader2, Calculator, DollarSign } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Calendar } from "@/components/ui/calendar"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export function PaymentForm() {
   const router = useRouter()
@@ -23,6 +24,7 @@ export function PaymentForm() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [calculatedUSD, setCalculatedUSD] = useState<number>(0)
+  const { currentMarket } = useMarketStore()
 
   const {
     register,
@@ -46,15 +48,17 @@ export function PaymentForm() {
   const amountNaira = watch("amountNaira")
   const exchangeRate = watch("exchangeRate")
 
-  // Auto-calculate USD amount
+  // Auto-calculate USD amount (Dubai); China flow uses RMB display only
   useEffect(() => {
-    if (amountNaira && exchangeRate) {
+    if (amountNaira && exchangeRate && currentMarket === 'DUBAI') {
       const usdAmount = amountNaira / exchangeRate
       setCalculatedUSD(usdAmount)
+    } else if (currentMarket === 'CHINA') {
+      setCalculatedUSD(0)
     } else {
       setCalculatedUSD(0)
     }
-  }, [amountNaira, exchangeRate])
+  }, [amountNaira, exchangeRate, currentMarket])
 
   // Load customers for dropdown
   const { data: customersData, isLoading: loadingCustomers } = useQuery({
@@ -76,7 +80,9 @@ export function PaymentForm() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
       toast({
         title: "Payment Recorded",
-        description: `Successfully recorded payment of $${calculatedUSD.toFixed(2)} USD`,
+        description: currentMarket === 'DUBAI'
+          ? `Successfully recorded payment of $${calculatedUSD.toFixed(2)} USD`
+          : `Successfully recorded payment in RMB flow`,
       })
       reset()
       router.push("/payments")
@@ -97,6 +103,10 @@ export function PaymentForm() {
   }
 
   const selectedCustomer = customersData?.customers?.find((c) => c.id === watch("customerId"))
+
+  const calculatedRMB = currentMarket === 'CHINA' && amountNaira && exchangeRate
+    ? amountNaira / exchangeRate
+    : 0
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -135,7 +145,7 @@ export function PaymentForm() {
                             <div className="flex justify-between items-center w-full">
                               <span>{customer.name}</span>
                               <span className="text-sm text-muted-foreground ml-2">
-                                ${customer.balanceUSD.toFixed(2)}
+                                {currentMarket === 'DUBAI' ? `USD: $${customer.balanceUSD.toFixed(2)}` : `RMB: ¥${(customer.balanceRMB || 0).toFixed(2)}`}
                               </span>
                             </div>
                           </SelectItem>
@@ -148,7 +158,7 @@ export function PaymentForm() {
               {errors.customerId && <p className="text-sm text-destructive">{errors.customerId.message}</p>}
               {selectedCustomer && (
                 <p className="text-sm text-muted-foreground">
-                  Current balance: ${selectedCustomer.balanceUSD.toFixed(2)} USD
+                  Current balance: {currentMarket === 'DUBAI' ? `USD $${selectedCustomer.balanceUSD.toFixed(2)}` : `RMB ¥${(selectedCustomer.balanceRMB || 0).toFixed(2)}`}
                 </p>
               )}
             </div>
@@ -172,7 +182,9 @@ export function PaymentForm() {
 
             {/* Exchange Rate */}
             <div className="space-y-2">
-              <Label htmlFor="exchangeRate">Exchange Rate (NGN/USD) *</Label>
+              <Label htmlFor="exchangeRate">
+                {currentMarket === 'DUBAI' ? 'Exchange Rate (NGN/USD) *' : 'Exchange Rate (NGN/RMB) *'}
+              </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">₦</span>
                 <Input
@@ -206,22 +218,41 @@ export function PaymentForm() {
               {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
             </div> */}
 
-            {/* Calculated USD Amount */}
+            {/* Calculated Amount Summary */}
             <Card className="bg-muted/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Calculator className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">USD Equivalent</span>
+                    <span className="font-medium">
+                      {currentMarket === 'DUBAI' ? 'USD Equivalent' : 'RMB Equivalent'}
+                    </span>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">
-                      ${calculatedUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </div>
-                    {amountNaira && exchangeRate && (
-                      <div className="text-sm text-muted-foreground">
-                        ₦{amountNaira.toLocaleString()} ÷ {exchangeRate} = ${calculatedUSD.toFixed(2)}
-                      </div>
+                    {currentMarket === 'DUBAI' ? (
+                      <>
+                        <div className="text-2xl font-bold text-primary">
+                          ${calculatedUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </div>
+                        {amountNaira && exchangeRate && (
+                          <div className="text-sm text-muted-foreground">
+                            ₦{amountNaira.toLocaleString()} ÷ {exchangeRate} = ${calculatedUSD.toFixed(2)}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      amountNaira && exchangeRate ? (
+                        <>
+                          <div className="text-2xl font-bold text-primary">
+                            ¥{(amountNaira / exchangeRate).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            ₦{amountNaira.toLocaleString()} ÷ {exchangeRate} = ¥{(amountNaira / exchangeRate).toFixed(2)}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-2xl font-bold text-primary">¥0.00</div>
+                      )
                     )}
                   </div>
                 </div>
@@ -233,7 +264,11 @@ export function PaymentForm() {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={createPaymentMutation.isPending || calculatedUSD === 0}
+                disabled={
+                  createPaymentMutation.isPending ||
+                  (currentMarket === "DUBAI" && calculatedUSD === 0) ||
+                  (currentMarket === "CHINA" && calculatedRMB === 0)
+                }
               >
                 {createPaymentMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Record Payment
@@ -246,8 +281,8 @@ export function PaymentForm() {
         </CardContent>
       </Card>
 
-      {/* New Balance Preview */}
-      {selectedCustomer && calculatedUSD > 0 && (
+      {/* New Balance Preview (Dubai only) */}
+      {selectedCustomer && calculatedUSD > 0 && currentMarket === 'DUBAI' && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">

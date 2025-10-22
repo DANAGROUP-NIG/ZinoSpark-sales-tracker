@@ -16,12 +16,14 @@ import { Loader2, Calculator, ArrowLeftRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Calendar } from "@/components/ui/calendar"
 import type { Vendor } from "@/lib/types"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export function ExchangeForm() {
   const router = useRouter()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [calculatedUSD, setCalculatedUSD] = useState<number>(0)
+  const { currentMarket } = useMarketStore()
 
   const {
     register,
@@ -44,15 +46,15 @@ export function ExchangeForm() {
   const amountNaira = watch("amountNaira")
   const exchangeRate = watch("exchangeRate")
 
-  // Auto-calculate USD amount
+  // Auto-calculate amount (USD for Dubai; RMB shown directly for China)
   useEffect(() => {
-    if (amountNaira && exchangeRate) {
+    if (amountNaira && exchangeRate && currentMarket === 'DUBAI') {
       const usdAmount = amountNaira / exchangeRate
       setCalculatedUSD(usdAmount)
     } else {
       setCalculatedUSD(0)
     }
-  }, [amountNaira, exchangeRate])
+  }, [amountNaira, exchangeRate, currentMarket])
 
   // Load exchange vendors
   const { data: vendorsData, isLoading: loadingVendors } = useQuery({
@@ -73,7 +75,9 @@ export function ExchangeForm() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
       toast({
         title: "Exchange Initiated",
-        description: `Successfully initiated exchange for $${calculatedUSD.toFixed(2)} USD`,
+        description: currentMarket === 'DUBAI'
+          ? `Successfully initiated exchange for $${calculatedUSD.toFixed(2)} USD`
+          : `Successfully initiated exchange for ¥${((amountNaira || 0) / (exchangeRate || 1)).toFixed(2)} RMB`,
       })
       reset()
       router.push("/exchanges")
@@ -92,6 +96,10 @@ export function ExchangeForm() {
     const { vendorId, amountNaira, exchangeRate } = data
     createExchangeMutation.mutate({ vendorId, amountNaira, exchangeRate, transactionDate: isoDate })
   }
+
+  const calculatedRMB = currentMarket === 'CHINA' && amountNaira && exchangeRate
+    ? amountNaira / exchangeRate
+    : 0
 
   const selectedVendor = vendorsData?.vendors?.find((v: Vendor) => v.id === watch("vendorId"))
 
@@ -155,7 +163,9 @@ export function ExchangeForm() {
 
             {/* Exchange Rate */}
             <div className="space-y-2">
-              <Label htmlFor="exchangeRate">Exchange Rate (NGN/USD) *</Label>
+              <Label htmlFor="exchangeRate">
+                {currentMarket === 'DUBAI' ? 'Exchange Rate (NGN/USD) *' : 'Exchange Rate (NGN/RMB) *'}
+              </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">₦</span>
                 <Input
@@ -189,22 +199,39 @@ export function ExchangeForm() {
               {errors.transactionDate && <p className="text-sm text-destructive">{errors.transactionDate.message}</p>}
             </div> */}
 
-            {/* Calculated USD Amount */}
+            {/* Calculated Amount */}
             <Card className="bg-muted/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Calculator className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">USD Equivalent</span>
+                    <span className="font-medium">{currentMarket === 'DUBAI' ? 'USD Equivalent' : 'RMB Equivalent'}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">
-                      ${calculatedUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </div>
-                    {amountNaira && exchangeRate && (
-                      <div className="text-sm text-muted-foreground">
-                        ₦{amountNaira.toLocaleString()} ÷ {exchangeRate} = ${calculatedUSD.toFixed(2)}
-                      </div>
+                    {currentMarket === 'DUBAI' ? (
+                      <>
+                        <div className="text-2xl font-bold text-primary">
+                          ${calculatedUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </div>
+                        {amountNaira && exchangeRate && (
+                          <div className="text-sm text-muted-foreground">
+                            ₦{amountNaira.toLocaleString()} ÷ {exchangeRate} = ${calculatedUSD.toFixed(2)}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      amountNaira && exchangeRate ? (
+                        <>
+                          <div className="text-2xl font-bold text-primary">
+                            ¥{(amountNaira / exchangeRate).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            ₦{amountNaira.toLocaleString()} ÷ {exchangeRate} = ¥{(amountNaira / exchangeRate).toFixed(2)}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-2xl font-bold text-primary">¥0.00</div>
+                      )
                     )}
                   </div>
                 </div>
@@ -216,7 +243,11 @@ export function ExchangeForm() {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={createExchangeMutation.isPending || calculatedUSD === 0}
+                disabled={
+                  createExchangeMutation.isPending ||
+                  (currentMarket === 'DUBAI' && calculatedUSD === 0) ||
+                  (currentMarket === 'CHINA' && calculatedRMB === 0)
+                }
               >
                 {createExchangeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Initiate Exchange
@@ -229,8 +260,8 @@ export function ExchangeForm() {
         </CardContent>
       </Card>
 
-      {/* Exchange Summary */}
-      {selectedVendor && calculatedUSD > 0 && (
+      {/* Exchange Summary (Dubai only) */}
+      {selectedVendor && calculatedUSD > 0 && currentMarket === 'DUBAI' && (
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <h3 className="font-medium mb-2">Exchange Summary</h3>

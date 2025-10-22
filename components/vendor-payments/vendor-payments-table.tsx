@@ -12,6 +12,7 @@ import { vendorPaymentsApi, customersApi, vendorsApi } from "@/lib/api"
 import { Search, Plus, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
 import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
+import { useMarketStore } from "@/lib/stores/market-store"
 
 export function VendorPaymentsTable() {
   const [search, setSearch] = useState("")
@@ -20,6 +21,10 @@ export function VendorPaymentsTable() {
   const [rangePreset, setRangePreset] = useState<"today" | "yesterday" | "week" | "month" | "custom">("today")
   const [customDays, setCustomDays] = useState<number>(30)
   const [limit] = useState(10)
+
+  const { showUsd } = useUsdVisibilityStore()
+  const { currentMarket } = useMarketStore()
+  const AED_RATE = 3.67
 
   const { startDate, endDate } = useMemo(() => {
     const toDateOnly = (d: Date) => d.toISOString().slice(0,10)
@@ -47,12 +52,12 @@ export function VendorPaymentsTable() {
   }, [rangePreset, customDays])
 
   const { data: vendorPaymentsData, isLoading: vendorPaymentsLoading } = useQuery({
-    queryKey: ["vendor-payments", { page, customerId: customerFilter, limit, startDate, endDate }],
+    queryKey: ["vendor-payments", { page, customerId: customerFilter, limit, startDate, endDate, currentMarket }],
     queryFn: () => vendorPaymentsApi.getAll({ page, limit, customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
   const { data: summary } = useQuery({
-    queryKey: ["vendor-payments-summary", { customerId: customerFilter, startDate, endDate }],
+    queryKey: ["vendor-payments-summary", { customerId: customerFilter, startDate, endDate, currentMarket }],
     queryFn: () => vendorPaymentsApi.getSummary({ customerId: customerFilter === "all" ? undefined : customerFilter, startDate, endDate }),
   })
 
@@ -82,8 +87,11 @@ export function VendorPaymentsTable() {
     })
   }
 
-  const formatCurrency = (amount: number) => {
-    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+  const formatCurrency = (amount: number, currency = "USD") => {
+    if (currency === "USD") {
+      return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+    }
+    return `¥${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
   }
 
   const getCustomerName = (customerId: string) => {
@@ -104,8 +112,6 @@ export function VendorPaymentsTable() {
 
   const totalPages = vendorPaymentsData?.totalPages || 1
   const totalVendorPayments = vendorPaymentsData?.total || 0
-  const { showUsd } = useUsdVisibilityStore()
-  const AED_RATE = 3.67
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage)
@@ -178,7 +184,12 @@ export function VendorPaymentsTable() {
         <div className="rounded-md border p-3 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Summary ({summary[0].date} ...)</span>
-            <span className="font-medium">USD: ${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()}</span>
+            <span className="font-medium">
+              {currentMarket === 'DUBAI' 
+                ? `USD: $${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()}`
+                : `RMB: ¥${summary.reduce((a:number, s:any)=>a+(s.totalAmountUSD||0),0).toLocaleString()}`
+              }
+            </span>
           </div>
         </div>
       )}
@@ -190,8 +201,8 @@ export function VendorPaymentsTable() {
             <TableRow>
               <TableHead>Customer</TableHead>
               <TableHead>Vendor</TableHead>
-              <TableHead>Amount (USD)</TableHead>
-              <TableHead>AED</TableHead>
+              <TableHead>Amount ({currentMarket === 'DUBAI' ? 'USD' : 'RMB'})</TableHead>
+              {currentMarket === 'DUBAI' && <TableHead>AED</TableHead>}
               <TableHead>Description</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
@@ -232,8 +243,15 @@ export function VendorPaymentsTable() {
                 <TableRow key={payment.id}>
                   <TableCell className="font-medium">{getCustomerName(payment.customerId)}</TableCell>
                   <TableCell>{getVendorName(payment.vendorId)}</TableCell>
-                  <TableCell className="font-medium">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</TableCell>
-                  <TableCell>AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="font-medium">
+                    {currentMarket === 'DUBAI' 
+                      ? (showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>)
+                      : formatCurrency(payment.amountRMB || payment.amountUSD, 'RMB')
+                    }
+                  </TableCell>
+                  {currentMarket === 'DUBAI' && (
+                    <TableCell>AED {((payment.amountUSD || 0) * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  )}
                   <TableCell>
                     <div className="max-w-xs">
                       {payment.description ? (
@@ -287,8 +305,15 @@ export function VendorPaymentsTable() {
                     <p className="text-xs text-muted-foreground mt-1">{formatDate(payment.createdAt)}</p>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-purple-600 text-lg">{showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>}</div>
-                    <div className="text-xs text-muted-foreground">AED {(payment.amountUSD * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div className="font-bold text-purple-600 text-lg">
+                      {currentMarket === 'DUBAI' 
+                        ? (showUsd ? formatCurrency(payment.amountUSD) : <span className="tracking-widest">*****</span>)
+                        : formatCurrency(payment.amountRMB || payment.amountUSD, 'RMB')
+                      }
+                    </div>
+                    {currentMarket === 'DUBAI' && (
+                      <div className="text-xs text-muted-foreground">AED {((payment.amountUSD || 0) * AED_RATE).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    )}
                     <Badge className="mt-1">Completed</Badge>
                   </div>
                 </div>
@@ -358,28 +383,37 @@ export function VendorPaymentsTable() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">USD</TableHead>
+                  <TableHead className="text-right">{currentMarket === 'DUBAI' ? 'USD' : 'RMB'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(Object.entries(
-                  vendorPaymentsAllForSummary.vendorPayments.reduce((acc: Record<string, { usd: number }>, p: any) => {
+                  vendorPaymentsAllForSummary.vendorPayments.reduce((acc: Record<string, { usd: number, rmb: number }>, p: any) => {
                     const key = p.customerId
-                    acc[key] = acc[key] || { usd: 0 }
+                    acc[key] = acc[key] || { usd: 0, rmb: 0 }
                     acc[key].usd += p.amountUSD || 0
+                    acc[key].rmb += p.amountRMB || 0
                     return acc
-                  }, {}) as Record<string, { usd: number }>
-                ) as Array<[string, { usd: number }]>).map(([customerId, totals]) => (
+                  }, {}) as Record<string, { usd: number, rmb: number }>
+                ) as Array<[string, { usd: number, rmb: number }]>).map(([customerId, totals]) => (
                   <TableRow key={customerId}>
                     <TableCell className="font-medium">{getCustomerName(customerId)}</TableCell>
-                    <TableCell className="text-right">${totals.usd.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      {currentMarket === 'DUBAI' 
+                        ? `$${totals.usd.toLocaleString()}`
+                        : `¥${totals.rmb.toLocaleString()}`
+                      }
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
           <div className="text-right text-sm font-medium">
-            Total USD: ${vendorPaymentsAllForSummary.vendorPayments.reduce((a: number, p: any) => a + (p.amountUSD || 0), 0).toLocaleString()}
+            Total {currentMarket === 'DUBAI' ? 'USD' : 'RMB'}: {currentMarket === 'DUBAI' 
+              ? `$${vendorPaymentsAllForSummary.vendorPayments.reduce((a: number, p: any) => a + (p.amountUSD || 0), 0).toLocaleString()}`
+              : `¥${vendorPaymentsAllForSummary.vendorPayments.reduce((a: number, p: any) => a + (p.amountRMB || 0), 0).toLocaleString()}`
+            }
           </div>
         </div>
       )}
