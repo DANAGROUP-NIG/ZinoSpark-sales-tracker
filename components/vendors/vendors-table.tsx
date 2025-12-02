@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ import type { Vendor } from "@/lib/types"
 
 export function VendorsTable() {
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
@@ -25,9 +26,24 @@ export function VendorsTable() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, 300)
+
+    return () => clearTimeout(handler)
+  }, [search])
+
   const { data, isLoading } = useQuery({
-    queryKey: ["vendors", { page, type: typeFilter, limit }],
-    queryFn: () => vendorsApi.getAll({ page, limit, type: typeFilter === "all" ? undefined : typeFilter }),
+    queryKey: ["vendors", { page, type: typeFilter, limit, search: debouncedSearch }],
+    queryFn: () =>
+      vendorsApi.getAll({
+        page,
+        limit,
+        type: typeFilter === "all" ? undefined : typeFilter,
+        search: debouncedSearch || undefined,
+      }),
+    keepPreviousData: true,
   })
 
   const deleteMutation = useMutation({
@@ -85,11 +101,7 @@ export function VendorsTable() {
     )
   }
 
-  // Filter vendors locally based on search
-  const filteredVendors = data?.vendors?.filter(vendor => 
-    vendor.name.toLowerCase().includes(search.toLowerCase()) ||
-    (vendor.contactInfo && vendor.contactInfo.toLowerCase().includes(search.toLowerCase()))
-  ) || []
+  const vendors = data?.vendors || []
 
   const totalPages = data?.totalPages || 1
   const totalVendors = data?.total || 0
@@ -108,11 +120,17 @@ export function VendorsTable() {
             <Input
               placeholder="Search vendors..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
               className="pl-10"
             />
           </div>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <Select value={typeFilter} onValueChange={(value) => {
+            setTypeFilter(value)
+            setPage(1)
+          }}>
             <SelectTrigger className="w-full sm:w-48">
               <Filter className="mr-2 h-4 w-4" />
               <SelectValue placeholder="All types" />
@@ -163,14 +181,14 @@ export function VendorsTable() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredVendors.length === 0 ? (
+            ) : vendors.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                   {search ? "No vendors match your search" : "No vendors found"}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredVendors.map((vendor) => (
+              vendors.map((vendor) => (
                 <TableRow key={vendor.id}>
                   <TableCell className="font-medium">{vendor.name}</TableCell>
                   <TableCell>{getTypeBadge(vendor.type)}</TableCell>
@@ -226,14 +244,14 @@ export function VendorsTable() {
               </CardContent>
             </Card>
           ))
-        ) : filteredVendors.length === 0 ? (
+        ) : vendors.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center text-muted-foreground">
               {search ? "No vendors match your search" : "No vendors found"}
             </CardContent>
           </Card>
         ) : (
-          filteredVendors.map((vendor) => (
+          vendors.map((vendor) => (
             <Card key={vendor.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">

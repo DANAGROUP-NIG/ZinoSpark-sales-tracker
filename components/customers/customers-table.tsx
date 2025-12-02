@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,7 @@ export function CustomersTable() {
   const { showUsd } = useUsdVisibilityStore()
   const { currentMarket } = useMarketStore()
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | undefined>()
@@ -28,9 +29,18 @@ export function CustomersTable() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, 300)
+
+    return () => clearTimeout(handler)
+  }, [search])
+
   const { data, isLoading } = useQuery({
-    queryKey: ["customers", { page, limit }],
-    queryFn: () => customersApi.getAll({ page, limit }),
+    queryKey: ["customers", { page, limit, search: debouncedSearch }],
+    queryFn: () => customersApi.getAll({ page, limit, search: debouncedSearch || undefined }),
+    keepPreviousData: true,
   })
 
   const deleteMutation = useMutation({
@@ -79,12 +89,7 @@ export function CustomersTable() {
     return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
   }
 
-  // Filter customers locally based on search
-  const filteredCustomers = data?.customers?.filter(customer => 
-    customer.name.toLowerCase().includes(search.toLowerCase()) ||
-    (customer.email && customer.email.toLowerCase().includes(search.toLowerCase())) ||
-    (customer.phone && customer.phone.toLowerCase().includes(search.toLowerCase()))
-  ) || []
+  const customers = data?.customers || []
 
   const totalPages = data?.totalPages || 1
   const totalCustomers = data?.total || 0
@@ -102,7 +107,10 @@ export function CustomersTable() {
           <Input
             placeholder="Search customers..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             className="pl-10"
           />
         </div>
@@ -149,14 +157,14 @@ export function CustomersTable() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : filteredCustomers.length === 0 ? (
+            ) : customers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {search ? "No customers match your search" : "No customers found"}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredCustomers.map((customer) => (
+              customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell className="font-medium">{customer.name}</TableCell>
                   <TableCell>{customer.email || "-"}</TableCell>
@@ -219,14 +227,14 @@ export function CustomersTable() {
               </CardContent>
             </Card>
           ))
-        ) : filteredCustomers.length === 0 ? (
+        ) : customers.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center text-muted-foreground">
               {search ? "No customers match your search" : "No customers found"}
             </CardContent>
           </Card>
         ) : (
-          filteredCustomers.map((customer) => (
+          customers.map((customer) => (
             <Card key={customer.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">

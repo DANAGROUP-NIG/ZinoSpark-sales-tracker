@@ -266,11 +266,12 @@ export const dashboardApi = {
 
 // Vendors API
 export const vendorsApi = {
-  getAll: (params?: { page?: number; limit?: number; type?: string }) => {
+  getAll: (params?: { page?: number; limit?: number; type?: string; search?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page !== undefined) searchParams.append('page', params.page.toString());
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString());
     if (params?.type) searchParams.append('type', params.type);
+    if (params?.search) searchParams.append('search', params.search);
     const qs = searchParams.toString();
     return fetchApi<any>(`/vendors${qs ? `?${qs}` : ''}`)
       .then((res) => {
