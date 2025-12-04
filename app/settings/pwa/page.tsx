@@ -40,13 +40,19 @@ export default function PWASettingsPage() {
 
   const [isInstalled, setIsInstalled] = useState(false)
   const [canInstall, setCanInstall] = useState(false)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  // Default to true; actual value will be set on the client
+  const [isOnline, setIsOnline] = useState(true)
 
   useEffect(() => {
     // Check if app is installed
     const checkStandalone = () => {
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches
       setIsInstalled(isStandalone)
+    }
+
+    // Initial online status (guarded for SSR)
+    if (typeof navigator !== "undefined") {
+      setIsOnline(navigator.onLine)
     }
 
     // Check online status

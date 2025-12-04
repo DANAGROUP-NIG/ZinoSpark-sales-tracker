@@ -83,7 +83,7 @@ export default function LoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="superadmin@example.com"
+                    placeholder="email"
                     {...register("email")}
                     className={`pl-10 h-12 bg-gray-50/50 border-gray-200 focus:border-primary focus:ring-primary rounded-xl transition-all duration-200 ${
                       errors.email ? "border-destructive focus:border-destructive" : ""
@@ -101,7 +101,7 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="password"
                     {...register("password")}
                     className={`pl-10 pr-10 h-12 bg-gray-50/50 border-gray-200 focus:border-primary focus:ring-primary rounded-xl transition-all duration-200 ${
                       errors.password ? "border-destructive focus:border-destructive" : ""

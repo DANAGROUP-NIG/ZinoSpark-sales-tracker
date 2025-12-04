@@ -1,7 +1,6 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { useParams } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,9 +13,11 @@ import { useUsdVisibilityStore } from "@/lib/stores/usd-visibility-store"
 import { useMarketStore } from "@/lib/stores/market-store"
 import { useToast } from "@/components/ui/use-toast";
 
-export default function CustomerDetailPage() {
-  const params = useParams()
-  const customerId = params.id as string
+type Props = {
+  customerId: string
+}
+
+export default function CustomerDetailPageClient({ customerId }: Props) {
   const { showUsd } = useUsdVisibilityStore()
   const { currentMarket } = useMarketStore()
   const { toast } = useToast();
@@ -67,16 +68,6 @@ export default function CustomerDetailPage() {
 
   const AED_RATE = 3.67
   const RMB_TO_AED = 0.5 // Approximate AED per 1 RMB for China market displays
-  const renderUsdWithAed = (usd?: number) => {
-    const safe = typeof usd === 'number' && isFinite(usd) ? usd : 0
-    const aed = safe * AED_RATE
-    return (
-      <div className="flex flex-col items-end">
-        <span className="font-medium">{showUsd ? `$${safe.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : <span className="tracking-widest">*****</span>}</span>
-        <span className="text-xs text-muted-foreground">AED {aed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-      </div>
-    )
-  }
 
   const shareToWhatsApp = (text: string) => {
     if (currentMarket === "CHINA") {
@@ -440,3 +431,5 @@ export default function CustomerDetailPage() {
     </DashboardLayout>
   )
 }
+
+

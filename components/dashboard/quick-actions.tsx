@@ -21,7 +21,7 @@ export function QuickActions() {
       title: "New Customer",
       description: "Add new customer",
       icon: Users,
-      href: "/customers/new",
+      href: "/customers",
       roles: ["CLIENT"],
     },
     {

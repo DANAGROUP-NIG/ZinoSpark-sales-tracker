@@ -17,7 +17,8 @@ interface PWAStatus {
 export function PWAStatus() {
   const [status, setStatus] = useState<PWAStatus>({
     isInstalled: false,
-    isOnline: navigator.onLine,
+    // Default value; real status is determined on the client
+    isOnline: true,
     isStandalone: false,
     canInstall: false,
   })
@@ -27,6 +28,11 @@ export function PWAStatus() {
     const checkStandalone = () => {
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches
       setStatus(prev => ({ ...prev, isStandalone, isInstalled: isStandalone }))
+    }
+
+    // Initial online status (guarded for SSR)
+    if (typeof navigator !== "undefined") {
+      setStatus(prev => ({ ...prev, isOnline: navigator.onLine }))
     }
 
     // Check online status

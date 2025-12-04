@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { customersApi, vendorsApi, vendorPaymentsApi, walletApi } from "@/lib/api"
@@ -15,6 +14,21 @@ import { vendorPaymentSchema, type VendorPaymentFormData } from "@/lib/validatio
 import { Loader2, Send, AlertTriangle, Wallet } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useMarketStore } from "@/lib/stores/market-store"
+import { useMemo } from "react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+
+type CustomerSummary = {
+  id: string
+  name: string
+  balanceUSD: number
+  balanceRMB?: number | null
+}
+
+type VendorSummary = {
+  id: string
+  name: string
+  type?: string
+}
 
 export function VendorPaymentForm() {
   const router = useRouter()
@@ -98,8 +112,34 @@ export function VendorPaymentForm() {
     createPaymentMutation.mutate({ ...data, transactionDate: isoDate as any })
   }
 
-  const selectedCustomer = customersData?.customers?.find((c) => c.id === selectedCustomerId)
-  const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
+  const customers = useMemo(() => (customersData?.customers ?? []) as CustomerSummary[], [customersData])
+  const vendors = useMemo(() => (vendorsData?.vendors ?? []) as VendorSummary[], [vendorsData])
+  const customerOptions = useMemo(
+    () =>
+      customers.map((customer) => ({
+        value: customer.id,
+        label: customer.name,
+        description:
+          currentMarket === "DUBAI"
+            ? `USD balance: $${customer.balanceUSD.toFixed(2)}`
+            : `RMB balance: ¥${(customer.balanceRMB || 0).toFixed(2)}`,
+        meta: customer,
+      })),
+    [customers, currentMarket],
+  )
+  const vendorOptions = useMemo(
+    () =>
+      vendors.map((vendor) => ({
+        value: vendor.id,
+        label: vendor.name,
+        description: vendor.type ? `Type: ${vendor.type}` : undefined,
+        meta: vendor,
+      })),
+    [vendors],
+  )
+
+  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId)
+  const selectedVendor = vendors.find((vendor) => vendor.id === watch("vendorId"))
   const hasInsufficientCustomerBalance = selectedCustomer && amount > (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD : (selectedCustomer.balanceRMB || 0))
   const hasInsufficientWalletBalance = amount > walletBalance
   const newBalance = selectedCustomer ? (currentMarket === 'DUBAI' ? selectedCustomer.balanceUSD - amount : (selectedCustomer.balanceRMB || 0) - amount) : 0
@@ -122,33 +162,31 @@ export function VendorPaymentForm() {
                 name="customerId"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className={errors.customerId ? "border-destructive" : ""}>
-                      <SelectValue placeholder="Select a customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {loadingCustomers ? (
-                        <SelectItem value="loading" disabled>
-                          Loading customers...
-                        </SelectItem>
-                      ) : customersData?.customers?.length === 0 ? (
-                        <SelectItem value="no-customers" disabled>
-                          No customers available
-                        </SelectItem>
-                      ) : (
-                        customersData?.customers?.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            <div className="flex justify-between items-center w-full">
-                              <span>{customer.name}</span>
-                              <span className="text-sm text-muted-foreground ml-2">
-                                {currentMarket === 'DUBAI' ? `USD: $${customer.balanceUSD.toFixed(2)}` : `RMB: ¥${(customer.balanceRMB || 0).toFixed(2)}`}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={customerOptions}
+                    placeholder="Select a customer"
+                    searchPlaceholder="Search customers..."
+                    emptyMessage="No customers found"
+                    loading={loadingCustomers}
+                    triggerClassName={errors.customerId ? "border-destructive" : undefined}
+                    renderOption={(option) => {
+                      const customer = option.meta as CustomerSummary | undefined
+                      return (
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="font-medium">{option.label}</span>
+                          {customer && (
+                            <span className="text-sm text-muted-foreground">
+                              {currentMarket === "DUBAI"
+                                ? `USD: $${customer.balanceUSD.toFixed(2)}`
+                                : `RMB: ¥${(customer.balanceRMB || 0).toFixed(2)}`}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
                 )}
               />
               {errors.customerId && <p className="text-sm text-destructive">{errors.customerId.message}</p>}
@@ -166,28 +204,24 @@ export function VendorPaymentForm() {
                 name="vendorId"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className={errors.vendorId ? "border-destructive" : ""}>
-                      <SelectValue placeholder="Select a payment vendor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {loadingVendors ? (
-                        <SelectItem value="loading" disabled>
-                          Loading vendors...
-                        </SelectItem>
-                      ) : vendorsData?.vendors?.length === 0 ? (
-                        <SelectItem value="no-vendors" disabled>
-                          No payment vendors available
-                        </SelectItem>
-                      ) : (
-                        vendorsData?.vendors?.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.id}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={vendorOptions}
+                    placeholder="Select a payment vendor"
+                    searchPlaceholder="Search vendors..."
+                    emptyMessage="No vendors found"
+                    loading={loadingVendors}
+                    triggerClassName={errors.vendorId ? "border-destructive" : undefined}
+                    renderOption={(option) => (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-medium">{option.label}</span>
+                        {option.description && (
+                          <span className="text-xs uppercase tracking-wide text-muted-foreground">{option.description}</span>
+                        )}
+                      </div>
+                    )}
+                  />
                 )}
               />
               {errors.vendorId && <p className="text-sm text-destructive">{errors.vendorId.message}</p>}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { customersApi, paymentsApi } from "@/lib/api"
 import { paymentSchema, type PaymentFormData } from "@/lib/validations/payment"
@@ -16,6 +15,14 @@ import { Loader2, Calculator, DollarSign } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Calendar } from "@/components/ui/calendar"
 import { useMarketStore } from "@/lib/stores/market-store"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+
+type CustomerSummary = {
+  id: string
+  name: string
+  balanceUSD: number
+  balanceRMB?: number | null
+}
 
 export function PaymentForm() {
   const router = useRouter()
@@ -102,7 +109,21 @@ export function PaymentForm() {
     createPaymentMutation.mutate({ customerId, amountNaira, exchangeRate, transactionDate: isoDate })
   }
 
-  const selectedCustomer = customersData?.customers?.find((c) => c.id === watch("customerId"))
+  const customers = useMemo(() => (customersData?.customers ?? []) as CustomerSummary[], [customersData])
+  const selectedCustomer = customers.find((customer) => customer.id === watch("customerId"))
+  const customerOptions = useMemo(
+    () =>
+      customers.map((customer) => ({
+        value: customer.id,
+        label: customer.name,
+        description:
+          currentMarket === "DUBAI"
+            ? `USD balance: $${customer.balanceUSD.toFixed(2)}`
+            : `RMB balance: ¥${(customer.balanceRMB || 0).toFixed(2)}`,
+        meta: customer,
+      })),
+    [customers, currentMarket],
+  )
 
   const calculatedRMB = currentMarket === 'CHINA' && amountNaira && exchangeRate
     ? amountNaira / exchangeRate
@@ -126,33 +147,31 @@ export function PaymentForm() {
                 name="customerId"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className={errors.customerId ? "border-destructive" : ""}>
-                      <SelectValue placeholder="Select a customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {loadingCustomers ? (
-                        <SelectItem value="loading" disabled>
-                          Loading customers...
-                        </SelectItem>
-                      ) : customersData?.customers?.length === 0 ? (
-                        <SelectItem value="no-customers" disabled>
-                          No customers available
-                        </SelectItem>
-                      ) : (
-                        customersData?.customers?.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            <div className="flex justify-between items-center w-full">
-                              <span>{customer.name}</span>
-                              <span className="text-sm text-muted-foreground ml-2">
-                                {currentMarket === 'DUBAI' ? `USD: $${customer.balanceUSD.toFixed(2)}` : `RMB: ¥${(customer.balanceRMB || 0).toFixed(2)}`}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={customerOptions}
+                    placeholder="Select a customer"
+                    searchPlaceholder="Search customers..."
+                    emptyMessage="No customers found"
+                    loading={loadingCustomers}
+                    triggerClassName={errors.customerId ? "border-destructive" : undefined}
+                    renderOption={(option) => {
+                      const customer = option.meta as CustomerSummary | undefined
+                      return (
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="font-medium">{option.label}</span>
+                          {customer && (
+                            <span className="text-sm text-muted-foreground">
+                              {currentMarket === "DUBAI"
+                                ? `USD: $${customer.balanceUSD.toFixed(2)}`
+                                : `RMB: ¥${(customer.balanceRMB || 0).toFixed(2)}`}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
                 )}
               />
               {errors.customerId && <p className="text-sm text-destructive">{errors.customerId.message}</p>}

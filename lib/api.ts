@@ -132,6 +132,12 @@ export const authApi = {
     return data
   },
 
+  changePassword: async (payload: { currentPassword: string; newPassword: string }) =>
+    fetchApi<any>("/auth/change-password", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
   logout: async () => {
     try {
       await fetchApi("/auth/logout", { method: "POST" })

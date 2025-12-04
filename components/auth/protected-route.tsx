@@ -47,12 +47,23 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     )
   }
 
+  // Fallback UI for unauthenticated users for static export/refresh
   if (!isAuthenticated) {
-    return null
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <h2 className="text-lg font-semibold mb-4">Please log in to access your dashboard.</h2>
+        <a href="/login" className="px-4 py-2 bg-blue-600 text-white rounded">Go to Login</a>
+      </div>
+    );
   }
 
   if (allowedRoles && user && user.role !== "CLIENT" && !allowedRoles.includes(user.role)) {
-    return null
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <h2 className="text-lg font-semibold mb-4">You are not authorized to access this page.</h2>
+        <a href="/" className="px-4 py-2 bg-blue-600 text-white rounded">Go Home</a>
+      </div>
+    );
   }
 
   return <>{children}</>

@@ -190,7 +190,7 @@ export function CustomersTable() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/customers/${customer.id}`}>
+                          <Link href={`/customers/detail?id=${customer.id}`}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </Link>
@@ -252,7 +252,7 @@ export function CustomersTable() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
-                        <Link href={`/customers/${customer.id}`}>
+                        <Link href={`/customers/detail?id=${customer.id}`}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
                         </Link>

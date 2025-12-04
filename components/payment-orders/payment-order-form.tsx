@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -10,12 +10,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { paymentOrderSchema, type PaymentOrderFormData } from "@/lib/validations/payment-order"
 import { paymentOrdersApi, customersApi, vendorsApi } from "@/lib/api"
 import { useMarketStore } from "@/lib/stores/market-store"
 import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, DollarSign, Users, Building2 } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+
+type CustomerSummary = {
+  id: string
+  name: string
+  balanceUSD: number
+  balanceRMB?: number | null
+  email?: string | null
+}
+
+type VendorSummary = {
+  id: string
+  name: string
+  type?: string
+  contactInfo?: string | null
+}
 
 export function PaymentOrderForm() {
   const router = useRouter()
@@ -109,8 +124,35 @@ export function PaymentOrderForm() {
     createPaymentOrderMutation.mutate(payload)
   }
 
-  const selectedCustomer = customersData?.customers?.find((c) => c.id === selectedCustomerId)
-  const selectedVendor = vendorsData?.vendors?.find((v) => v.id === watch("vendorId"))
+  const customers = useMemo(() => (customersData?.customers ?? []) as CustomerSummary[], [customersData])
+  const vendors = useMemo(() => (vendorsData?.vendors ?? []) as VendorSummary[], [vendorsData])
+
+  const customerOptions = useMemo(
+    () =>
+      customers.map((customer) => ({
+        value: customer.id,
+        label: customer.name,
+        description: customer.email || "No email",
+        meta: customer,
+        searchKeywords: `${customer.name} ${customer.email ?? ""}`,
+      })),
+    [customers],
+  )
+
+  const vendorOptions = useMemo(
+    () =>
+      vendors.map((vendor) => ({
+        value: vendor.id,
+        label: vendor.name,
+        description: vendor.type ? `Type: ${vendor.type}` : undefined,
+        meta: vendor,
+        searchKeywords: `${vendor.name} ${vendor.type ?? ""} ${vendor.contactInfo ?? ""}`,
+      })),
+    [vendors],
+  )
+
+  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId)
+  const selectedVendor = vendors.find((vendor) => vendor.id === watch("vendorId"))
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -147,29 +189,33 @@ export function PaymentOrderForm() {
                 <Users className="h-4 w-4" />
                 Customer *
               </Label>
-              <Select
-                value={selectedCustomerId}
-                onValueChange={(value) => {
-                  // Update the form field
-                  const event = { target: { value } } as any
-                  register("customerId").onChange(event)
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loadingCustomers ? (
-                    <SelectItem value="loading" disabled>Loading customers...</SelectItem>
-                  ) : (
-                    customersData?.customers?.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name} ({customer.email || 'No email'})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Controller
+                name="customerId"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={customerOptions}
+                    placeholder="Select customer"
+                    searchPlaceholder="Search customers..."
+                    emptyMessage="No customers found"
+                    loading={loadingCustomers}
+                    triggerClassName={errors.customerId ? "border-destructive" : undefined}
+                    renderOption={(option) => {
+                      const customer = option.meta as CustomerSummary | undefined
+                      return (
+                        <div className="flex flex-col">
+                          <span className="font-medium">{option.label}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {customer?.email || "No email"}
+                          </span>
+                        </div>
+                      )
+                    }}
+                  />
+                )}
+              />
               {errors.customerId && (
                 <p className="text-sm text-red-500">{errors.customerId.message}</p>
               )}
@@ -185,22 +231,27 @@ export function PaymentOrderForm() {
                 name="vendorId"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select vendor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {loadingVendors ? (
-                        <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
-                      ) : (
-                        vendorsData?.vendors?.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.id}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={vendorOptions}
+                    placeholder="Select vendor"
+                    searchPlaceholder="Search vendors..."
+                    emptyMessage="No vendors found"
+                    loading={loadingVendors}
+                    triggerClassName={errors.vendorId ? "border-destructive" : undefined}
+                    renderOption={(option) => {
+                      const vendor = option.meta as VendorSummary | undefined
+                      return (
+                        <div className="flex flex-col">
+                          <span className="font-medium">{option.label}</span>
+                          {vendor?.type && (
+                            <span className="text-sm uppercase text-muted-foreground">{vendor.type}</span>
+                          )}
+                        </div>
+                      )
+                    }}
+                  />
                 )}
               />
               {errors.vendorId && (
